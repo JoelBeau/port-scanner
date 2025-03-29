@@ -39,14 +39,11 @@ def syn_scan(port_list: list[Port], host: str, port: int):
     is_open = False
 
     s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
-    print(str(socket.gethostbyname(socket.gethostname())))
-    s.bind((str(socket.gethostbyname(socket.gethostname())), 0))
-
-    # Bind to source socket randomly, store to add in tcp_header
-    # s.bind((str(ip), 0))
+    s.bind(("eth0", 0))
+    
     source_port = s.getsockname()[1]
 
-    '''
+    """
     Build the ip_header
     Add the:
         - the version (4 -> ipv4), IHL (Internet Header length) 
@@ -63,13 +60,13 @@ def syn_scan(port_list: list[Port], host: str, port: int):
         - TTL (Time To Live) meaning the max hops (routers the packet can go through before it is discarded)
         - Protocol in this case it is the TCP protocol, which is registered as 6 by the IANA
         - Finally add the Header checksum (just all hex added up to ensure integrity of the header)
-    '''
+    """
     ip_header = b"\x45\x00\x00\x28"  # (IP Version, IHL), Type of Service, Total Length
     ip_header += b"\xab\xcd\x00\x00"  # Identification | Flags, Fragment Offset
     ip_header += b"\x40\x06\xa6\xec"  # TTL, Protocol | Header Checksum
 
-    # 
-    '''
+    #
+    """
     Now we build the tcp_header:
     
     Add the:
@@ -95,7 +92,7 @@ def syn_scan(port_list: list[Port], host: str, port: int):
         - Checksum of the TCP header, which we need to calculate
         - Urgent pointer -> only used when the URG flag is set (in flags), since it is not, this value is also 0
     
-    '''
+    """
     # Create a pseudo header for the checksum
     pseudo_header = b"\x00\x06"
 
@@ -103,7 +100,7 @@ def syn_scan(port_list: list[Port], host: str, port: int):
     tcp_header += socket.inet_aton(host)
 
     # Add the source & dest port to the header
-    pseudo_header+= tcp_header
+    pseudo_header += tcp_header
 
     # Store the ports for later access
     source_port_b = struct.pack("!H", source_port)
@@ -118,8 +115,8 @@ def syn_scan(port_list: list[Port], host: str, port: int):
     # Store the squence # and acknowledgement in on variable (since they are both 0-d out)
     squence_n_ack = b"\x00\x00\x00\x00"
 
-    tcp_header += squence_n_ack # Sequence #
-    tcp_header += squence_n_ack # Acknowledgment
+    tcp_header += squence_n_ack  # Sequence #
+    tcp_header += squence_n_ack  # Acknowledgment
 
     # Add them to the data variable as well.
     tcp_data += squence_n_ack
@@ -136,7 +133,7 @@ def syn_scan(port_list: list[Port], host: str, port: int):
     tcp_data += b"\x00\x00\x00\x00"
 
     # Add the length of the TCP to the pseudo header
-    pseudo_header += struct.pack("!H", len(tcp_data)) 
+    pseudo_header += struct.pack("!H", len(tcp_data))
 
     # Claculate the checksum
     tcp_checksum = calculate_checksum(pseudo_header + tcp_data)
@@ -162,12 +159,13 @@ def calculate_checksum(data: bytes):
         else:
             word = data[i] << 8  # Handle the case where the length is odd
         checksum += word
-    
+
     while checksum > 0xFFFF:
         checksum = (checksum & 0xFFFF) + (checksum >> 16)
 
     # One's complement of the result
     return ~checksum & 0xFFFF
+
 
 port_list: list[Port] = []
 
