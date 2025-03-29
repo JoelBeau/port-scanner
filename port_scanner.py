@@ -1,5 +1,6 @@
 import socket
 import threading
+import time
 import struct
 from port import Port
 
@@ -40,6 +41,39 @@ def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
     with lock:
         port_list.append(Port(host, port, status, is_open))
 
+def listen_for_syn_ack(source_port: int, timeout: int = 5) -> bool:
+    """
+    Listen for a SYN/ACK response to the SYN packet.
+    :param source_port: The source port used in the SYN packet.
+    :param timeout: Timeout in seconds to wait for a response.
+    :return: True if a SYN/ACK is received, False otherwise.
+    """
+    try:
+        # Create a raw socket to listen for incoming packets
+        recv_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+        recv_socket.settimeout(timeout)
+
+        while True:
+            # Receive packets
+            packet, _ = recv_socket.recvfrom(65535)
+
+            # Extract TCP header (next 20 bytes)
+            tcp_header = packet[20:40]
+
+            # Unpack the TCP header
+            tcp_fields = struct.unpack("!HHLLBBHHH", tcp_header)
+            dest_port = tcp_fields[1]  # Destination port
+            flags = tcp_fields[5]      # TCP flags
+
+            # Check if the packet is for our source port and has SYN/ACK flags
+            if dest_port == source_port and flags & 0x12 == 0x12:  # SYN (0x02) + ACK (0x10)
+                return "OPEN"
+
+            if dest_port == source_port and flags & 0x14 == 0x14: # ACK (0x10) + RST (0X04)
+                return "CLOSED"
+            
+    except socket.timeout:
+        return "FILTERED"
 
 
 def syn_scan(port_list: list[Port], host: str, port: int):
@@ -104,6 +138,7 @@ def syn_scan(port_list: list[Port], host: str, port: int):
     # Create a pseudo header for the checksum
     pseudo_header = b"\x00\x06"
 
+    # Add the source_ip and host
     tcp_header = socket.inet_aton(str(ip_add))
     tcp_header += socket.inet_aton(host)
 
@@ -154,6 +189,14 @@ def syn_scan(port_list: list[Port], host: str, port: int):
 
     s.sendto(packet, (host, 0))
 
+    # Listen for a SYN/ACK response
+    status = listen_for_syn_ack(source_port)
+
+    is_open = True if status == "OPEN" else False
+
+    with lock:
+        port_list.append(Port(host, port, status, is_open))
+
 def calculate_checksum(data: bytes):
     """
     Calculate the checksum for the given data.
@@ -177,24 +220,28 @@ def calculate_checksum(data: bytes):
     # One's complement of the result
     return ~checksum & 0xFFFF
 
+# Get host ip
 ip_add = get_ip()
 
 port_list: list[Port] = []
 
 scanning_threads: list[threading.Thread] = []
 
-print(socket.gethostbyname("cse3320.org"))
+cse3320_ip = socket.gethostbyname("cse3320.org")
+print(cse3320_ip)
+
+syn_scan(port_list, str(cse3320_ip), 22)
 
 # # Test the first 50 ports
-# for p in range(1, 1024):
-#     thread = threading.Thread(target=tcp_connect_scan, args=(port_list, str(socket.gethostbyname("cse3320.org")), p, 5))
+# for p in range(1,10):
+#     thread = threading.Thread(target=syn_scan, args=(port_list, str(cse3320_ip), p))
 #     scanning_threads.append(thread)
 #     thread.start()
-     
+    
 # for t in scanning_threads:
 #     t.join()
 
 # port_list.sort(key=lambda x: x.get_port())
 
-# for p in port_list:
-#     print(p)
+for p in port_list:
+    print(p)
