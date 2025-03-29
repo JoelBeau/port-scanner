@@ -3,11 +3,17 @@ import threading
 import struct
 from port import Port
 
+# Mutex
 lock = threading.Lock()
 
-hostname = socket.gethostname()
-ip = socket.gethostbyname(hostname)
-
+def get_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Doesn't send data, just figures out the best local IP to reach 8.8.8.8
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    finally:
+        s.close()
 
 def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
 
@@ -35,13 +41,15 @@ def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
         port_list.append(Port(host, port, status, is_open))
 
 
+
 def syn_scan(port_list: list[Port], host: str, port: int):
     is_open = False
 
-    s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
-    s.bind(("eth0", 0))
-    
-    source_port = s.getsockname()[1]
+    s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+    s.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
+
+    # randomport to include in the SYN packet
+    source_port = 1234
 
     """
     Build the ip_header
@@ -96,7 +104,7 @@ def syn_scan(port_list: list[Port], host: str, port: int):
     # Create a pseudo header for the checksum
     pseudo_header = b"\x00\x06"
 
-    tcp_header = socket.inet_aton(str(ip))
+    tcp_header = socket.inet_aton(str(ip_add))
     tcp_header += socket.inet_aton(host)
 
     # Add the source & dest port to the header
@@ -142,6 +150,9 @@ def syn_scan(port_list: list[Port], host: str, port: int):
     tcp_header += struct.pack("!H", tcp_checksum)
     tcp_header += b"\x00\x00"
 
+    packet = ip_header + tcp_header
+
+    s.sendto(packet, (host, 0))
 
 def calculate_checksum(data: bytes):
     """
@@ -166,23 +177,24 @@ def calculate_checksum(data: bytes):
     # One's complement of the result
     return ~checksum & 0xFFFF
 
+ip_add = get_ip()
 
 port_list: list[Port] = []
 
-syn_scan(port_list, str(ip), 20)
-
 scanning_threads: list[threading.Thread] = []
 
-# Test the first 50 ports
-for p in range(1, 50):
-    thread = threading.Thread(target=tcp_connect_scan, args=(port_list, str(ip), p, 5))
-    scanning_threads.append(thread)
-    thread.start()
+print(socket.gethostbyname("cse3320.org"))
 
-for t in scanning_threads:
-    t.join()
+# # Test the first 50 ports
+# for p in range(1, 1024):
+#     thread = threading.Thread(target=tcp_connect_scan, args=(port_list, str(socket.gethostbyname("cse3320.org")), p, 5))
+#     scanning_threads.append(thread)
+#     thread.start()
+     
+# for t in scanning_threads:
+#     t.join()
 
-port_list.sort(key=lambda x: x.get_port())
+# port_list.sort(key=lambda x: x.get_port())
 
-for p in port_list:
-    print(p)
+# for p in port_list:
+#     print(p)
