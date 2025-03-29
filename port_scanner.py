@@ -170,6 +170,9 @@ def calculate_checksum(data: bytes):
     return ~checksum & 0xFFFF
 
 port_list: list[Port] = []
+
+syn_scan(port_list, str(ip), 20)
+
 scanning_threads: list[threading.Thread] = []
 
 # Test the first 50 ports
