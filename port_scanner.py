@@ -6,10 +6,15 @@ from port import Port
 
 lock = threading.Lock()
 
+hostname = socket.gethostname()
+ip = socket.gethostbyname(hostname)
+
+
 def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
 
     is_open = False
     status = None
+
     # Creates a socket denoting which IP protocol to be used and the type of port to open i.e. TCP
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(timeout)
@@ -18,11 +23,11 @@ def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
     try:
         s.connect((host, port))
         is_open = True
-        status = 'OPEN'
+        status = "OPEN"
     except socket.timeout:
-        status = 'FILTERED'
+        status = "FILTERED"
     except ConnectionRefusedError:
-        status = 'CLOSED'
+        status = "CLOSED"
     finally:
         s.close()
 
@@ -30,28 +35,52 @@ def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
     with lock:
         port_list.append(Port(host, port, status, is_open))
 
+
 def syn_scan(port_list: list[Port], host: str, port: int):
     is_open = False
 
-    s= socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
+    s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_TCP)
     s.setsockopt(socket.IPPROTO_TCP, socket.IP_HDRINCL, 1)
 
-    ip_header  = b'\x45\x00\x00\x28'  # Version, IHL, Type of Service | Total Length
-    ip_header += b'\xab\xcd\x00\x00'  # Identification | Flags, Fragment Offset
-    ip_header += b'\x40\x06\xa6\xec'  # TTL, Protocol | Header Checksum
+    # Bind to source socket randomly, store to add in tcp_header
+    s.bind((str(ip), 0))
+    source_port = s.getsockname()[1]
 
-def convert_ip_to_hex(host: str):
-    hex_val = hex(int(ipaddress.IPv4Address('127.0.0.1')))[2:]
+    # Build the ip_header
+    """
+    - Add the:
+      - the version (4 -> ipv4), IHL (Internet Header length) 
+      - Length of the IP header ToS (Type of Service, modernly called DSCP & ECN) (0, default)
+      - the Total Length of the packet we are sending (i.e. header + payload )
+    """
+    ip_header = b"\x45\x00\x00\x28"  # (IP Version, IHL), Type of Service, Total Length
 
-    for val in textwrap.wrap(hex_val,2):
-        print(val)
+    # Now provide: 
+    # Provide identification of the packet (unqiue identifier)
+    # Provide any flags (i.e. Don't Fragment, More Fragments) & fragmenetation offset
+    # since we are sending a single small SYN packet, both of these are 0 (there are no fragmented packets to follow)
+    ip_header += b"\xab\xcd\x00\x00"  # Identification | Flags, Fragment Offset
+
+    # Finally we provide the:
+    # TTL (Time To Live) meaning the max hops (routers the packet can go through before it is discarded)
+    # Protocol in this case it is the TCP protocol, which is registered as 6 by the IANA
+    # Finally add the Header checksum (just all hex added up to ensure integrity of the header)
+    ip_header += b"\x40\x06\xa6\xec"  # TTL, Protocol | Header Checksum
+
+    # Now we build the tcp payload
+
+    # First we add the
+    # Convert source ip and destination ip to bytes and add them to the tcp_payload for the packet
+    tcp_payload = socket.inet_aton(str(ip))
+    tcp_payload += socket.inet_aton(host)
 
 
 port_list: list[Port] = []
 scanning_threads: list[threading.Thread] = []
 
+# Test the first 50 ports
 for p in range(1, 50):
-    thread = threading.Thread(target=tcp_connect_scan, args=(port_list, "127.0.0.1", p, 5))
+    thread = threading.Thread(target=tcp_connect_scan, args=(port_list, str(ip), p, 5))
     scanning_threads.append(thread)
     thread.start()
 
