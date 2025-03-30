@@ -1,20 +1,28 @@
+import os
+import sys
+
 import socket
 import threading
-import time
 import struct
+
 from port import Port
+from scapy.all import IP, TCP, sr1, ICMP, Ether
 
 # Mutex
 lock = threading.Lock()
 
+# Get host's outfacing IP
 def get_ip():
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    try:
-        # Doesn't send data, just figures out the best local IP to reach 8.8.8.8
-        s.connect(("8.8.8.8", 80))
-        return s.getsockname()[0]
-    finally:
-        s.close()
+    return os.popen("curl -s ifconfig.me").read().strip()
+
+# Get mac Address of given ipaddress
+def get_mac(ip):
+    return os.popen(f"arp -n {ip}").read()
+
+# Ensure ip is reachable
+def check_ip(ip):
+    output = os.popen(f"ping {ip} -c 4").read()
+    return False if "not known" in output else True
 
 def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
 
@@ -30,9 +38,17 @@ def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
         s.connect((host, port))
         is_open = True
         status = "OPEN"
+    except OSError as e:
+        # If the host is rejecting it, means firewall is blocking it.
+        if e.errno == 113:
+            status = "FILTERED"
+        else:
+            print(e)
     except socket.timeout:
+        # If it is a timeout error, then that also means firewall is blocking it
         status = "FILTERED"
     except ConnectionRefusedError:
+        # If connection is refused, this means port is closed
         status = "CLOSED"
     finally:
         s.close()
@@ -40,6 +56,7 @@ def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
     # With the mutex lock, append the port to the port list
     with lock:
         port_list.append(Port(host, port, status, is_open))
+
 
 def listen_for_syn_ack(source_port: int, timeout: int = 5) -> bool:
     """
@@ -63,15 +80,19 @@ def listen_for_syn_ack(source_port: int, timeout: int = 5) -> bool:
             # Unpack the TCP header
             tcp_fields = struct.unpack("!HHLLBBHHH", tcp_header)
             dest_port = tcp_fields[1]  # Destination port
-            flags = tcp_fields[5]      # TCP flags
+            flags = tcp_fields[5]  # TCP flags
 
             # Check if the packet is for our source port and has SYN/ACK flags
-            if dest_port == source_port and flags & 0x12 == 0x12:  # SYN (0x02) + ACK (0x10)
+            if (
+                dest_port == source_port and flags & 0x12 == 0x12
+            ):  # SYN (0x02) + ACK (0x10)
                 return "OPEN"
 
-            if dest_port == source_port and flags & 0x14 == 0x14: # ACK (0x10) + RST (0X04)
+            if (
+                dest_port == source_port and flags & 0x14 == 0x14
+            ):  # ACK (0x10) + RST (0X04)
                 return "CLOSED"
-            
+
     except socket.timeout:
         return "FILTERED"
 
@@ -197,6 +218,7 @@ def syn_scan(port_list: list[Port], host: str, port: int):
     with lock:
         port_list.append(Port(host, port, status, is_open))
 
+
 def calculate_checksum(data: bytes):
     """
     Calculate the checksum for the given data.
@@ -220,6 +242,11 @@ def calculate_checksum(data: bytes):
     # One's complement of the result
     return ~checksum & 0xFFFF
 
+# Skeleton for parsing flags and validation
+def get_flags():
+    for arg in sys.argv:
+        print(arg)
+
 # Get host ip
 ip_add = get_ip()
 
@@ -228,20 +255,18 @@ port_list: list[Port] = []
 scanning_threads: list[threading.Thread] = []
 
 cse3320_ip = socket.gethostbyname("cse3320.org")
-print(cse3320_ip)
 
-syn_scan(port_list, str(cse3320_ip), 22)
+# Test the first 50 ports
+for p in range(1,50):
+    thread = threading.Thread(target=tcp_connect_scan, args=(port_list,"127.0.0.1", p, 5))
+    scanning_threads.append(thread)
+    thread.start()
 
-# # Test the first 50 ports
-# for p in range(1,10):
-#     thread = threading.Thread(target=syn_scan, args=(port_list, str(cse3320_ip), p))
-#     scanning_threads.append(thread)
-#     thread.start()
-    
-# for t in scanning_threads:
-#     t.join()
+for t in scanning_threads:
+    t.join()
 
 # port_list.sort(key=lambda x: x.get_port())
 
 for p in port_list:
+    # if p.check():
     print(p)
