@@ -6,23 +6,28 @@ import threading
 import struct
 
 from port import Port
-from scapy.all import IP, TCP, sr1, ICMP, Ether
+from scapy.all import sr1
+from scapy.layers.inet import ICMP, IP, TCP
 
 # Mutex
 lock = threading.Lock()
+
 
 # Get host's outfacing IP
 def get_ip():
     return os.popen("curl -s ifconfig.me").read().strip()
 
+
 # Get mac Address of given ipaddress
 def get_mac(ip):
     return os.popen(f"arp -n {ip}").read()
+
 
 # Ensure ip is reachable
 def check_ip(ip):
     output = os.popen(f"ping {ip} -c 4").read()
     return False if "not known" in output else True
+
 
 def tcp_connect_scan(port_list: list[Port], host: str, port: int, timeout: int):
 
@@ -219,6 +224,35 @@ def syn_scan(port_list: list[Port], host: str, port: int):
         port_list.append(Port(host, port, status, is_open))
 
 
+def syn_scan_v2(port_list: list[Port], host: str, port: int, timeout: int=None):
+
+    # Create IP layer for SYN packet
+    ip_layer = IP(dst=host)
+
+    # Create TCP layer with SYN flag set
+    tcp_layer = TCP(dport=port, flags="S", sport=12345)
+
+    # Stack the layers on top of eachother
+    packet = ip_layer / tcp_layer
+
+    # Sends packet an returns answer
+    response = sr1(packet, timeout=2, verbose=0)
+
+    tested_port = None
+
+    if response:
+        if response.haslayer(TCP):
+            # Get tcp flags from the packet response
+            tcp_flags = response[TCP].flags
+            if tcp_flags == "SA":
+                tested_port = Port(host, port, "OPEN", True)
+            if tcp_flags == "AR":
+                tested_port = Port(host, port, "CLOSED", False)
+        if response.haslayer(ICMP):
+            r_code = response[ICMP].code
+            
+
+
 def calculate_checksum(data: bytes):
     """
     Calculate the checksum for the given data.
@@ -242,10 +276,12 @@ def calculate_checksum(data: bytes):
     # One's complement of the result
     return ~checksum & 0xFFFF
 
+
 # Skeleton for parsing flags and validation
 def get_flags():
     for arg in sys.argv:
         print(arg)
+
 
 # Get host ip
 ip_add = get_ip()
@@ -257,8 +293,10 @@ scanning_threads: list[threading.Thread] = []
 cse3320_ip = socket.gethostbyname("cse3320.org")
 
 # Test the first 50 ports
-for p in range(1,50):
-    thread = threading.Thread(target=tcp_connect_scan, args=(port_list,"127.0.0.1", p, 5))
+for p in range(1, 50):
+    thread = threading.Thread(
+        target=tcp_connect_scan, args=(port_list, "127.0.0.1", p, 5)
+    )
     scanning_threads.append(thread)
     thread.start()
 
