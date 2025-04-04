@@ -16,19 +16,35 @@ class Scan(ABC):
         self.lock = threading.Lock()
 
     @abstractmethod
-    def scan(self, port_list: list[Port], host: str, port: str, timeout: int):
+    def scan(
+        self,
+        port_list: list[Port],
+        host: str,
+        port: str,
+        timeout: int,
+        verbose: bool = False,
+    ):
         pass
 
 
 class TCPConnect(Scan):
 
-    def scan(self, port_list: list[Port], host: str, port: str, timeout: int):
+    def scan(
+        self,
+        port_list: list[Port],
+        host: str,
+        port: str,
+        timeout: int,
+        verbose: bool = False,
+    ):
         is_open = False
         status = None
 
         # Creates a socket denoting which IP protocol to be used and the type of port to open i.e. TCP
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(timeout)
+        if verbose:
+            print(f"Aiming to connect to {host} on port {port}...")
 
         # Tries to connect to the specified host and port, if successful, sets the is_open variable to true, if it doesn't & an error arrises, nothing is changed
         try:
@@ -48,6 +64,18 @@ class TCPConnect(Scan):
         finally:
             s.close()
 
+        if verbose:
+            if status == "FILTERED":
+                print(
+                    f"FAILURE, port {port} on host {host} is being blocked by the host's firewall!"
+                )
+            elif status == "CLOSED":
+                print(
+                    f"FAILURE, port {port} on host {host} is specifically close from external connections!"
+                )
+            else:
+                print(f"SUCCESS! Port {port} is open on {host}")
+
         # With the mutex lock, append the port to the port list
         with self.lock:
             port_list.append(Port(host, port, status, is_open))
@@ -55,8 +83,17 @@ class TCPConnect(Scan):
 
 class SYNScan(Scan):
 
-    def scan(self, port_list: list[Port], host: str, port: str, timeout: int):
-        conf.verb = 0
+    def scan(
+        self,
+        port_list: list[Port],
+        host: str,
+        port: str,
+        timeout: int,
+        verbose: bool = False,
+    ):
+        # If verbose is not set, then supress scapy's INFO prints
+        if not verbose:
+            conf.verb = 0
         # Ether layer for the packet
         eth_layer = Ether(dst=get_host_mac(host).upper())
 
