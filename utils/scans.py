@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 from scapy.all import sr1, conf
 from scapy.layers.inet import ICMP, IP, TCP, Ether
-from utils.network_utils import get_host_mac
+from utils.network_utils import get_mac
 
 
 class Scan(ABC):
@@ -21,13 +21,34 @@ class Scan(ABC):
     def scan(
         self,
         port_list: list[Port],
-        host: str,
         port: int,
         timeout: int,
-        rety: int = -1,
+        rety: int = 0,
         verbose: bool = False,
     ):
         pass
+
+    def verbosity_print(
+        self, port: int = None, port_obj: Port = None, type: str = "result"
+    ):
+
+        host = self.host
+
+        if type == "a":
+            print(f"\nAiming to connect to {host} on port {port}...")
+        else:
+            status = port_obj.get_status()
+            port = port_obj.get_port()
+            if status == "FILTERED":
+                print(
+                    f"\nFAILURE, port {port} on host {host} is being blocked by the host's firewall!"
+                )
+            elif status == "CLOSED":
+                print(
+                    f"\nFAILURE, port {port} on host {host} is specifically close from external connections!"
+                )
+            else:
+                print(f"\nSUCCESS! Port {port} is open on {host}")
 
 
 class TCPConnect(Scan):
@@ -35,11 +56,10 @@ class TCPConnect(Scan):
     def scan(
         self,
         port_list: list[Port],
-        host: str,
         port: int,
         timeout: int,
         user_agent=None,
-        retry: int = -1,
+        retry: int = 0,
         verbose: bool = False,
     ):
         is_open = False
@@ -47,8 +67,11 @@ class TCPConnect(Scan):
 
         http_ports = [80, 443]
 
+        host = self.host
+
+        # If verbosity is enabled, print
         if verbose:
-            print(f"Aiming to connect to {host} on port {port}...")
+            self.verbosity_print(port, type="a")
 
         # Check if port is an http port if not proceed with raw sockets
         if port not in http_ports:
@@ -101,25 +124,17 @@ class TCPConnect(Scan):
         if status == "CLOSED" or status == "FILTERED":
             if retry > 0:
                 retry -= 1
-                self.scan(
-                    self, port_list, host, port, timeout, user_agent, retry, verbose
-                )
-
-        if verbose:
-            if status == "FILTERED":
-                print(
-                    f"FAILURE, port {port} on host {host} is being blocked by the host's firewall!"
-                )
-            elif status == "CLOSED":
-                print(
-                    f"FAILURE, port {port} on host {host} is specifically close from external connections!"
-                )
-            else:
-                print(f"SUCCESS! Port {port} is open on {host}")
-
-        # With the mutex lock, append the port to the port list
-        with self.lock:
-            port_list.append(Port(host, port, status, is_open))
+                self.scan(port_list, port, timeout, user_agent, retry, verbose)
+                return
+        tested_port = Port(self.host, port, status, is_open)
+        
+        # If the rety count is at 0, add the tested_port to its 
+        if retry == 0:
+            if verbose:
+                self.verbosity_print(port_obj=tested_port)
+            # With the mutex lock, append the port to the port list
+            with self.lock:
+                port_list.append(tested_port)
 
 
 class SYNScan(Scan):
@@ -127,17 +142,24 @@ class SYNScan(Scan):
     def scan(
         self,
         port_list: list[Port],
-        host: str,
         port: int,
         timeout: int,
-        retry: int = -1,
+        retry: int = 0,
         verbose: bool = False,
     ):
+
         # If verbose is not set, then supress scapy's INFO prints
         if not verbose:
             conf.verb = 0
+
+        if verbose:
+            self.verbosity_print(port, type="a")
+
+        # Set the host value to the super classes host
+        host = self.host
+
         # Ether layer for the packet
-        eth_layer = Ether(dst=get_host_mac(host).upper())
+        # eth_layer = Ether(dst=get_mac(host).upper())
 
         # Create IP layer for SYN packet
         ip_layer = IP(dst=host)
@@ -176,11 +198,17 @@ class SYNScan(Scan):
         if port_status == "CLOSED" or port_status == "FILTERED":
             if retry > 0:
                 retry -= 1
-                self.scan(self, port_list, host, port, timeout, retry, verbose)
+                self.scan(port_list, port, timeout, retry, verbose)
+                return
 
-        # With the mutex, append the port to the port list
-        with self.lock:
-            if tested_port:
-                port_list.append(tested_port)
-            else:
-                port_list.append(Port(host, port, "UNKNOWN", False))
+        # If the retry amount is 0 and verbosity is enabled call verbosity print func
+        if retry == 0:
+            if verbose:
+                self.verbosity_print(port_obj=tested_port)
+
+            # With the mutex, append the port to the port list
+            with self.lock:
+                if tested_port:
+                    port_list.append(tested_port)
+                else:
+                    port_list.append(Port(host, port, "UNKNOWN", False))
