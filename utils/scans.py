@@ -1,6 +1,8 @@
 import socket
 import threading
 
+import requests
+
 from utils.models import Port
 from abc import ABC, abstractmethod
 
@@ -22,7 +24,8 @@ class Scan(ABC):
         host: str,
         port: str,
         timeout: int,
-        verbose: bool = False,
+        user_agent=None,
+        verbose: bool = False
     ):
         pass
 
@@ -35,34 +38,63 @@ class TCPConnect(Scan):
         host: str,
         port: str,
         timeout: int,
-        verbose: bool = False,
+        user_agent=None,
+        verbose: bool = False
     ):
         is_open = False
         status = None
 
-        # Creates a socket denoting which IP protocol to be used and the type of port to open i.e. TCP
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(timeout)
+        http_ports = [80, 443]
+
         if verbose:
             print(f"Aiming to connect to {host} on port {port}...")
 
-        # Tries to connect to the specified host and port, if successful, sets the is_open variable to true, if it doesn't & an error arrises, nothing is changed
-        try:
-            s.connect((host, port))
-            is_open = True
-            status = "OPEN"
-        except socket.timeout and OSError as e:
-            if type(e) == OSError:
-                if e.errno == 113:
+        # Check if port is an http port if not proceed with raw sockets
+        if port not in http_ports:
+            # Creates a socket denoting which IP protocol to be used and the type of port to open i.e. TCP
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(timeout)
+
+            # Tries to connect to the specified host and port, if successful, sets the is_open variable to true, if it doesn't & an error arrises, nothing is changed
+            try:
+                s.connect((host, port))
+                is_open = True
+                status = "OPEN"
+            except socket.timeout and OSError as e:
+                if type(e) == OSError:
+                    if e.errno == 113:
+                        status = "FILTERED"
+                else:
+                    # If it is a timeout error, then that also means firewall is blocking it
                     status = "FILTERED"
-            else:
-                # If it is a timeout error, then that also means firewall is blocking it
+            except ConnectionRefusedError:
+                # If connection is refused, this means port is closed
+                status = "CLOSED"
+            finally:
+                s.close()
+        else:
+            # if the port is a http port, make an https request 
+            try:
+                protocol = "http" if port == 80 else "https"
+                url = f"{protocol}://{host}:{port}/"
+
+                headers = {}
+
+                if user_agent:
+                    headers["User-Agent"] = user_agent
+
+                response = requests.get(url, headers=headers, timeout=2).text
+
+                # If there is text in the response, then that connection succeeded
+                if response:
+                    status = "OPEN"
+
+            # If there is a TimeoutError, then the host has some sort of firewall blocking access to that port
+            except requests.exceptions.ConnectTimeout:
                 status = "FILTERED"
-        except ConnectionRefusedError:
-            # If connection is refused, this means port is closed
-            status = "CLOSED"
-        finally:
-            s.close()
+            # If there is a ConnectionError, then the host has explicitly closed that port
+            except requests.exceptions.ConnectionError:
+                status = "CLOSED"
 
         if verbose:
             if status == "FILTERED":
