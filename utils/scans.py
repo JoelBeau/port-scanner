@@ -21,8 +21,6 @@ class Scan(ABC):
 
 
 class TCPConnect(Scan):
-    def __init__(self, host):
-        super(host)
 
     def scan(self, port_list: list[Port], host: str, port: str, timeout: int):
         is_open = False
@@ -56,9 +54,6 @@ class TCPConnect(Scan):
 
 
 class SYNScan(Scan):
-
-    def __init__(self, host):
-        super(host)
 
     def scan(self, port_list: list[Port], host: str, port: str, timeout: int):
         # Ether layer for the packet
