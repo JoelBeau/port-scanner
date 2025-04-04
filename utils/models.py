@@ -35,7 +35,7 @@ class Arguements:
 
     def __init__(self):
         self.parser = ArgParser(description="Port Scanner - A tool for scanning ports and retrieving banners.")
-        self.args = None
+        self.args = self.get_flags()
 
     #Parse flags with arguement parser
     def get_flags(self):
@@ -45,7 +45,6 @@ class Arguements:
             "--target",
             type=self.parse_ips,
             required=True,
-            default="1-1024",
             help="Specify the target IP or range of IPs to scan",
         )
         self.parser.add_argument(
@@ -89,7 +88,7 @@ class Arguements:
 
         args = self.parser.parse_args()
 
-        self.args = vars(args)
+        return vars(args)
 
 
     def parse_exclusions(self, value: str):
@@ -119,7 +118,7 @@ class Arguements:
             raise argparse.ArgumentTypeError(f"Invalid IP exclusion {e.args[0]}")
 
 
-    def parse_ips(ips: str):
+    def parse_ips(self, ips: str):
         if "-" not in ips:
             return ips
         else:
