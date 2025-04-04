@@ -4,7 +4,7 @@ import threading
 from utils.models import Port
 from abc import ABC, abstractmethod
 
-from scapy.all import sr1
+from scapy.all import sr1, conf
 from scapy.layers.inet import ICMP, IP, TCP, Ether
 from utils.network_utils import get_host_mac
 
@@ -56,6 +56,7 @@ class TCPConnect(Scan):
 class SYNScan(Scan):
 
     def scan(self, port_list: list[Port], host: str, port: str, timeout: int):
+        conf.verb = 0
         # Ether layer for the packet
         eth_layer = Ether(dst=get_host_mac(host).upper())
 
@@ -83,7 +84,7 @@ class SYNScan(Scan):
                     tested_port = Port(host, port, "CLOSED", False)
             if response.haslayer(ICMP):
                 r_code = response[ICMP].code
-                if "prohibited" in r_code:
+                if r_code == 10:
                     tested_port = Port(host, port, "FILTERED", False)
         else:
             # If no response, then port is filtered
