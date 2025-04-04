@@ -64,7 +64,7 @@ class Arguements:
         self.parser.add_argument(
             "-v", "--verbose", action="store_true", help="Enable verbose output"
         )
-        self.parser.add_argument("-o", "--output", help="Specify the output format or file")
+        self.parser.add_argument("-o", "--output", type=self.parse_outputs, choices=["*json", "*csv"], default="text", help="Specify the output format or file")
         self.parser.add_argument(
             "-r",
             "--retry",
@@ -90,6 +90,18 @@ class Arguements:
 
         return vars(args)
 
+
+    def parse_outputs(self, output):
+
+        formats = ["json", "csv", "text"]
+
+        if output in formats:
+            return output
+
+        if output.contains("."):
+            return output
+        
+        raise argparse.ArgumentTypeError(f"Invalid output format or filename: {output}")
 
     def parse_exclusions(self, value: str):
         if "," not in value: 
