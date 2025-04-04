@@ -2,6 +2,7 @@ import argparse
 import sys
 import ipaddress as ipa
 
+
 class Port:
 
     def __init__(self, host, port, status, is_open=False):
@@ -25,19 +26,23 @@ class Port:
     def __str__(self):
         return f"{self.__host}:{self.__port} status: {self.__status} "
 
+
 class ArgParser(argparse.ArgumentParser):
     def error(self, message):
         sys.stderr.write(f"Error: {message}\n\n")
         self.print_help()
         sys.exit(-1)
 
+
 class Arguements:
 
     def __init__(self):
-        self.parser = ArgParser(description="Port Scanner - A tool for scanning ports and retrieving banners.")
+        self.parser = ArgParser(
+            description="Port Scanner - A tool for scanning ports and retrieving banners."
+        )
         self.args = self.get_flags()
 
-    #Parse flags with arguement parser
+    # Parse flags with arguement parser
     def get_flags(self):
 
         self.parser.add_argument(
@@ -51,7 +56,7 @@ class Arguements:
             "-p",
             "--port",
             type=self.parse_port_range,
-            default=range(1,1025),
+            default=range(1, 1025),
             help="Specify the range of ports to scan (e.g., 1-1024 or 80)",
         )
         self.parser.add_argument(
@@ -64,7 +69,14 @@ class Arguements:
         self.parser.add_argument(
             "-v", "--verbose", action="store_true", help="Enable verbose output"
         )
-        self.parser.add_argument("-o", "--output", type=self.parse_outputs, choices=["*json", "*csv"], default="text", help="Specify the output format or file")
+        self.parser.add_argument(
+            "-o",
+            "--output",
+            type=self.parse_outputs,
+            choices=["*json", "*csv"],
+            default="text",
+            help="Specify the output format or file",
+        )
         self.parser.add_argument(
             "-r",
             "--retry",
@@ -72,7 +84,10 @@ class Arguements:
             help="Number of retries on failed connection attempts",
         )
         self.parser.add_argument(
-            "-n", "--no-resolve", action="store_true", help="Disable reverse DNS resolution"
+            "-n",
+            "--no-resolve",
+            action="store_true",
+            help="Disable reverse DNS resolution",
         )
         self.parser.add_argument(
             "-u",
@@ -80,7 +95,10 @@ class Arguements:
             help="Specify a custom user-agent string for HTTP-based scans",
         )
         self.parser.add_argument(
-            "-e", "--exclude", type=self.parse_exclusions, help="Exclude specific IPs or ports from the scan"
+            "-e",
+            "--exclude",
+            type=self.parse_exclusions,
+            help="Exclude specific IPs or ports from the scan",
         )
         self.parser.add_argument(
             "-b", "--banner", action="store_true", help="Enable service banner grabbing"
@@ -89,7 +107,6 @@ class Arguements:
         args = self.parser.parse_args()
 
         return vars(args)
-
 
     def parse_outputs(self, output):
 
@@ -100,14 +117,14 @@ class Arguements:
 
         if output.contains("."):
             return output
-        
+
         raise argparse.ArgumentTypeError(f"Invalid output format or filename: {output}")
 
     def parse_exclusions(self, value: str):
-        if "," not in value: 
+        if "," not in value:
             return self.validate_exclusions(value)
         else:
-            exclusions = value.split(',')
+            exclusions = value.split(",")
             modified_exclusions = []
             for e in exclusions:
                 modified_exclusions.append(self.validate_exclusions(e))
@@ -129,7 +146,6 @@ class Arguements:
         except ipa.AddressValueError as e:
             raise argparse.ArgumentTypeError(f"Invalid IP exclusion {e.args[0]}")
 
-
     def parse_ips(self, ips: str):
         if "-" not in ips:
             return ips
@@ -143,8 +159,9 @@ class Arguements:
                     ip = ipa.IPv4Address(ip)
                 return range(start, end)
             except ipa.AddressValueError as e:
-                raise argparse.ArgumentTypeError(f"Invalid IP address range, {e.args[0]}")
-
+                raise argparse.ArgumentTypeError(
+                    f"Invalid IP address range, {e.args[0]}"
+                )
 
     def parse_port_range(ports: str):
 
