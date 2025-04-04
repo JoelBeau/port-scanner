@@ -1,12 +1,12 @@
 import socket
 import threading
 
-from scanner_utils import Port
+from utils.models import Port
 from abc import ABC, abstractmethod
 
 from scapy.all import sr1
 from scapy.layers.inet import ICMP, IP, TCP, Ether
-from scanner_utils import get_host_mac
+from utils.network_utils import get_host_mac
 
 
 class Scan(ABC):
