@@ -17,13 +17,17 @@ def check_ip(ip: str):
     return False if "not known" in output else True
 
 # Gets banner service on open port
-def get_banner(ip: str, port: int):
+def get_banner(ip: str, port: int, user_agent=False):
     try:
         socket.setdefaulttimeout(2)
         s = socket.socket()
         s.connect((ip, port))
-        s.send(b'GET / HTTP/1.1\r\nHost: ' + ip.encode("utf-8") + b'\r\n\r\n')
-        return s.recv(1024).decode("utf-8")
+        banner = s.recv(1024).decode("utf-8")
     except:
         return None
+    finally:
+        s.close()
+
+    return banner if banner else "No service to be found on open port"
+    
 
