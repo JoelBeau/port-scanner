@@ -7,17 +7,17 @@ def get_ip(host: str):
 
 
 # Get mac Address of given ipaddress
-def get_host_mac(ip):
-    return os.popen("curl -s ifconfig.me | arp -n | grep :").read().split()[2]
+def get_mac(ip: str):
+    return os.popen(f"curl -s ifconfig.me | arp -n {ip} | grep :").read().split()[2]
 
 
 # Ensure ip is reachable
-def check_ip(ip):
+def check_ip(ip: str):
     output = os.popen(f"ping {ip} -c 4").read()
     return False if "not known" in output else True
 
 # Gets banner service on open port
-def get_banner(ip, port):
+def get_banner(ip: str, port: int):
     try:
         socket.setdefaulttimeout(2)
         s = socket.socket()
