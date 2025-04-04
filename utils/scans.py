@@ -24,8 +24,8 @@ class Scan(ABC):
         host: str,
         port: str,
         timeout: int,
-        user_agent=None,
-        verbose: bool = False
+        rety: int = -1,
+        verbose: bool = False,
     ):
         pass
 
@@ -39,7 +39,8 @@ class TCPConnect(Scan):
         port: str,
         timeout: int,
         user_agent=None,
-        verbose: bool = False
+        retry: int = -1,
+        verbose: bool = False,
     ):
         is_open = False
         status = None
@@ -73,7 +74,7 @@ class TCPConnect(Scan):
             finally:
                 s.close()
         else:
-            # if the port is a http port, make an https request 
+            # if the port is a http port, make an https request
             try:
                 protocol = "http" if port == 80 else "https"
                 url = f"{protocol}://{host}:{port}/"
@@ -95,6 +96,14 @@ class TCPConnect(Scan):
             # If there is a ConnectionError, then the host has explicitly closed that port
             except requests.exceptions.ConnectionError:
                 status = "CLOSED"
+
+        # If the port connection fails, and the rety flag is set with x, then recursively try until retries runs out or connection succeeds
+        if status == "CLOSED" or status == "FILTERED":
+            if retry > 0:
+                retry -= 1
+                self.scan(
+                    self, port_list, host, port, timeout, user_agent, retry, verbose
+                )
 
         if verbose:
             if status == "FILTERED":
@@ -121,6 +130,7 @@ class SYNScan(Scan):
         host: str,
         port: str,
         timeout: int,
+        retry: int = -1,
         verbose: bool = False,
     ):
         # If verbose is not set, then supress scapy's INFO prints
@@ -159,6 +169,16 @@ class SYNScan(Scan):
             # If no response, then port is filtered
             tested_port = Port(host, port, "FILTERED", False)
 
+        # Get the status of the tested port
+        port_status = tested_port.get_status()
+
+        # If the status is closed or filtered and the rety amount is > 0, recursevily try until connection succeeds or number of retries runs out
+        if port_status == "CLOSED" or port_status == "FILTERED":
+            if retry > 0:
+                retry -= 1
+                self.scan(self, port_list, host, port, timeout, retry, verbose)
+
+        # With the mutex, append the port to the port list
         with self.lock:
             if tested_port:
                 port_list.append(tested_port)
