@@ -1,5 +1,6 @@
 import socket
 import os
+from models import Port
 
 # Get ip of specified host
 def get_ip(host: str):
@@ -29,5 +30,9 @@ def get_banner(ip: str, port: int, user_agent=False):
         s.close()
 
     return banner if banner else "No service to be found on open port"
+
+# Skeleton for outputing results
+def output(port_list: list[Port], format="text"):
+    pass
     
 
