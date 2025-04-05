@@ -73,7 +73,7 @@ class Arguements:
             "-o",
             "--output",
             type=self.parse_outputs,
-            choices=["*json", "*csv"],
+            choices=["json", "csv", "text"],
             default="text",
             help="Specify the output format or file",
         )
@@ -112,9 +112,11 @@ class Arguements:
 
         formats = ["json", "csv", "text"]
 
+        # If just outputting to the terminal
         if output in formats:
             return output
 
+        # If outputting to a file
         if output.contains("."):
             return output
 
