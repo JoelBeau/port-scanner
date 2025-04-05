@@ -50,6 +50,23 @@ class Scan(ABC):
             else:
                 print(f"\nSUCCESS! Port {port} is open on {host}")
 
+    # Gets banner service on open port
+    def get_running_service(self, port_obj: Port):
+
+        port = port_obj.get_port()
+
+        try:
+            socket.setdefaulttimeout(2)
+            s = socket.socket()
+            s.connect((self.host, port))
+            banner = s.recv(1024).decode("utf-8")
+        except Exception as e:
+            banner = f"Unable to get running service on port {port} due to {e.args}"
+        finally:
+            s.close()
+
+        return banner if banner else "No service to be found on open port"
+
 
 class TCPConnect(Scan):
 
@@ -60,10 +77,11 @@ class TCPConnect(Scan):
         timeout: int,
         user_agent=None,
         retry: int = 0,
+        banner: bool = False,
         verbose: bool = False,
     ):
-        is_open = False
         status = None
+        tested_port = None
 
         http_ports = [80, 443]
 
@@ -82,7 +100,6 @@ class TCPConnect(Scan):
             # Tries to connect to the specified host and port, if successful, sets the is_open variable to true, if it doesn't & an error arrises, nothing is changed
             try:
                 s.connect((host, port))
-                is_open = True
                 status = "OPEN"
             except socket.timeout and OSError as e:
                 if type(e) == OSError:
@@ -126,15 +143,25 @@ class TCPConnect(Scan):
                 retry -= 1
                 self.scan(port_list, port, timeout, user_agent, retry, verbose)
                 return
+
+        # Determine if the port is open based on the status
+        is_open = True if status == "OPEN" else False
+
+        # Create port object of the port we just tested
         tested_port = Port(self.host, port, status, is_open)
-        
-        # If the rety count is at 0, add the tested_port to its 
-        if retry == 0:
-            if verbose:
-                self.verbosity_print(port_obj=tested_port)
-            # With the mutex lock, append the port to the port list
-            with self.lock:
-                port_list.append(tested_port)
+
+        # If the port is open and the banner flag has been enabled, get the banner and add it to the object
+        if tested_port.get_status() == "OPEN":
+            if banner:
+                service = self.get_running_service(tested_port)
+                tested_port.set_banner(service)
+
+        # After doing any retries, if verbose, print and add to list else just print
+        if verbose:
+            self.verbosity_print(port_obj=tested_port)
+        # With the mutex lock, append the port to the port list
+        with self.lock:
+            port_list.append(tested_port)
 
 
 class SYNScan(Scan):
@@ -145,7 +172,8 @@ class SYNScan(Scan):
         port: int,
         timeout: int,
         retry: int = 0,
-        verbose: bool = False,
+        banner: bool = False,
+        verbose: bool = False
     ):
 
         # If verbose is not set, then supress scapy's INFO prints
@@ -173,42 +201,47 @@ class SYNScan(Scan):
         # Sends packet an returns answer
         response = sr1(packet, timeout=timeout)
 
-        tested_port = None
+        status = None
 
         if response:
             if response.haslayer(TCP):
                 # Get tcp flags from the packet response
                 tcp_flags = response[TCP].flags
                 if tcp_flags == "SA":
-                    tested_port = Port(host, port, "OPEN", True)
+                    status = "OPEN"
                 if tcp_flags == "AR":
-                    tested_port = Port(host, port, "CLOSED", False)
+                    status = "CLOSED"
             if response.haslayer(ICMP):
                 r_code = response[ICMP].code
                 if r_code == 10:
-                    tested_port = Port(host, port, "FILTERED", False)
+                    status = "FILTERED"
         else:
             # If no response, then port is filtered
-            tested_port = Port(host, port, "FILTERED", False)
-
-        # Get the status of the tested port
-        port_status = tested_port.get_status()
+            status = "FILTERED"
 
         # If the status is closed or filtered and the rety amount is > 0, recursevily try until connection succeeds or number of retries runs out
-        if port_status == "CLOSED" or port_status == "FILTERED":
+        if status == "CLOSED" or status == "FILTERED":
             if retry > 0:
                 retry -= 1
                 self.scan(port_list, port, timeout, retry, verbose)
                 return
 
-        # If the retry amount is 0 and verbosity is enabled call verbosity print func
-        if retry == 0:
-            if verbose:
-                self.verbosity_print(port_obj=tested_port)
+        # Determine if the port is open based on the status
+        is_open = True if status == "OPEN" else False
 
-            # With the mutex, append the port to the port list
-            with self.lock:
-                if tested_port:
-                    port_list.append(tested_port)
-                else:
-                    port_list.append(Port(host, port, "UNKNOWN", False))
+        # Create port object of the port we just tested
+        tested_port = Port(self.host, port, status, is_open)
+
+        # If the port is open and the banner flag has been enabled, get the banner and add it to the object
+        if tested_port.get_status() == "OPEN":
+            if banner:
+                service = self.get_running_service(tested_port)
+                tested_port.set_banner(service)
+
+        # After any retries, if verbosity is enabled print and add to list else just add to list
+        if verbose:
+            self.verbosity_print(port_obj=tested_port)
+
+        # With the mutex, append the port to the port list
+        with self.lock:
+            port_list.append(tested_port)
