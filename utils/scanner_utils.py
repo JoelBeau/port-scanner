@@ -18,19 +18,7 @@ def check_ip(ip: str):
     output = os.popen(f"ping {ip} -c 4").read()
     return False if "not known" in output else True
 
-# Gets banner service on open port
-def get_banner(ip: str, port: int, user_agent=False):
-    try:
-        socket.setdefaulttimeout(2)
-        s = socket.socket()
-        s.connect((ip, port))
-        banner = s.recv(1024).decode("utf-8")
-    except:
-        return None
-    finally:
-        s.close()
 
-    return banner if banner else "No service to be found on open port"
 
 # Skeleton for outputing results
 def output(port_list: list[Port], format):
