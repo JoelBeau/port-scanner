@@ -5,11 +5,12 @@ import ipaddress as ipa
 
 class Port:
 
-    def __init__(self, host, port, status, is_open=False):
+    def __init__(self, host, port, status, banner=None, is_open=False):
         self.__host = host
         self.__port = port
         self.__status = status
         self.__is_open = is_open
+        self.__banner = banner
 
     def check(self):
         return self.__is_open
@@ -22,6 +23,9 @@ class Port:
 
     def get_status(self):
         return self.__status
+    
+    def get_banner(self):
+        return self.__banner
 
     def __str__(self):
         return f"{self.__host}:{self.__port} status: {self.__status} "
