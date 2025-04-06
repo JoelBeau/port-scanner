@@ -59,7 +59,7 @@ class Scan(ABC):
             socket.setdefaulttimeout(2)
             s = socket.socket()
             s.connect((self.host, port))
-            banner = s.recv(1024).decode("utf-8")
+            banner = s.recv(1024).decode("utf-8").strip()
         except Exception as e:
             banner = f"Unable to get running service on port {port} due to {e.args}"
         finally:
