@@ -23,15 +23,26 @@ class Port:
 
     def get_status(self):
         return self.__status
-    
+
     def get_banner(self):
         return self.__banner
-    
+
     def set_banner(self, banner):
         self.__banner = banner
 
     def __iter__(self):
-        return iter([self.__host, self.__port, self.__status, self.__is_open, self.__banner])
+        return iter(
+            [self.__host, self.__port, self.__status, self.__is_open, self.__banner if self.__banner else "N/A"]
+        )
+
+    def to_dict(self):
+        return {
+            "host": self.__host,
+            "port": self.__port,
+            "status": self.__status,
+            "is_open": self.__is_open,
+            "banner": self.__banner if self.__banner else "N/A",
+        }
 
     def __str__(self):
         return f"{self.__host}:{self.__port} status: {self.__status} "
@@ -84,7 +95,7 @@ class Arguements:
             "--output",
             type=self.parse_outputs,
             choices=["json", "csv", "text"],
-            default="text",
+            default=("text",False),
             help="Specify the output format or file",
         )
         self.parser.add_argument(
@@ -122,13 +133,13 @@ class Arguements:
 
         formats = ["json", "csv", "text"]
 
-        # If just outputting to the terminal
-        if output in formats:
-            return output
-
         # If outputting to a file
         if output.contains("."):
-            return output
+            return (output, True)
+        
+        # If just outputting to the terminal
+        if output in formats:
+            return (output, False)
 
         raise argparse.ArgumentTypeError(f"Invalid output format or filename: {output}")
 
