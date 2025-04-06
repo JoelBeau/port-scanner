@@ -100,7 +100,7 @@ class Arguements:
             "-o",
             "--output",
             type=self.parse_outputs,
-            default=("text", False),
+            default=("plain text", False),
             help="Specify the output format or file",
         )
         self.parser.add_argument(
@@ -136,10 +136,10 @@ class Arguements:
 
     def parse_outputs(self, output):
 
-        formats = ["json", "csv", "text"]
+        formats = ["json", "csv", "plain text"]
 
         # If outputting to a file
-        if output.contains("."):
+        if '.' in output:
             return (output, True)
 
         # If just outputting to the terminal
