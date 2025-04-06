@@ -30,6 +30,9 @@ class Port:
     def set_banner(self, banner):
         self.__banner = banner
 
+    def __iter__(self):
+        return iter([self.__host, self.__port, self.__status, self.__is_open, self.__banner])
+
     def __str__(self):
         return f"{self.__host}:{self.__port} status: {self.__status} "
 
