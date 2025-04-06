@@ -100,7 +100,6 @@ class Arguements:
             "-o",
             "--output",
             type=self.parse_outputs,
-            choices=["json", "csv", "text"],
             default=("text", False),
             help="Specify the output format or file",
         )
