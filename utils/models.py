@@ -32,7 +32,13 @@ class Port:
 
     def __iter__(self):
         return iter(
-            [self.__host, self.__port, self.__status, self.__is_open, self.__banner if self.__banner else "N/A"]
+            [
+                self.__host,
+                self.__port,
+                self.__status,
+                self.__is_open,
+                self.__banner if self.__banner else "N/A",
+            ]
         )
 
     def to_dict(self):
@@ -95,7 +101,7 @@ class Arguements:
             "--output",
             type=self.parse_outputs,
             choices=["json", "csv", "text"],
-            default=("text",False),
+            default=("text", False),
             help="Specify the output format or file",
         )
         self.parser.add_argument(
@@ -136,7 +142,7 @@ class Arguements:
         # If outputting to a file
         if output.contains("."):
             return (output, True)
-        
+
         # If just outputting to the terminal
         if output in formats:
             return (output, False)
