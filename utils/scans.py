@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 from scapy.all import sr1, conf
 from scapy.layers.inet import ICMP, IP, TCP, Ether
-from utils.scanner_utils import get_mac
+from .scanner_utils import get_mac
 
 
 class Scan(ABC):
