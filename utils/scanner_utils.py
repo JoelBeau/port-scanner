@@ -1,7 +1,11 @@
 import socket
 import os
-import pandas
-from models import Port
+import csv
+
+from tabulate import tabulate
+
+from .models import Port
+
 
 # Get ip of specified host
 def get_ip(host: str):
@@ -19,20 +23,43 @@ def check_ip(ip: str):
     return False if "not known" in output else True
 
 
-
 # Skeleton for outputing results
-def output(port_list: list[Port], format):
-    
-    if format == "text":
-        pd = pandas.DataFrame()
+def output(port_list: list[Port], medium="plain text"):
 
-        for p in port_list:
-
-            pd["host-ip"] = p.get_host()
-            pd["port-tested"] = p.get_port()
-            pd["port-status"] = p.get_status()
-            pd["port-is-open"] = p.check()
-            pd["port-banner"] = p.get_banner()
+    if "text" or "txt" in medium:
+        data = list (
+            map(
+                lambda p: list(p),
+                port_list
+            )
+        )
         
-    
+        headers = ["Host IP", "Port Test", "Port Status", "Port Is Open", "Port Banner"]
+
+        results = tabulate(data, headers=headers, tablefmt="grid")
+
+        if os.path.basename(medium):
+            with open(medium, "w") as f:
+                f.write(results)
+        else:
+            print(results)
+
+    if "csv" in medium:
+        
+        data = list (
+            map(
+                lambda p: vars(p),
+                port_list
+            )
+        )
+        
+        if os.path.basename(medium):
+            
+        field_names = ['host', 'port', 'status', 'is_open', 'banner']
+
+
+
+
+        
+
 
