@@ -1,6 +1,8 @@
 import socket
 import os
+import io
 import csv
+import json
 
 from tabulate import tabulate
 
@@ -24,42 +26,52 @@ def check_ip(ip: str):
 
 
 # Skeleton for outputing results
-def output(port_list: list[Port], medium="plain text"):
+def output(port_list: list[Port], medium: tuple):
 
-    if "text" or "txt" in medium:
-        data = list (
-            map(
-                lambda p: list(p),
-                port_list
-            )
-        )
-        
+    formattype, file = medium
+
+    if 'text' or 'txt' in formattype:
+
+        data = list(map(lambda p: list(p), port_list))
+
         headers = ["Host IP", "Port Test", "Port Status", "Port Is Open", "Port Banner"]
 
         results = tabulate(data, headers=headers, tablefmt="grid")
 
-        if os.path.basename(medium):
-            with open(medium, "w") as f:
+        if file:
+            with open(formattype, 'w') as f:
                 f.write(results)
         else:
             print(results)
 
-    if "csv" in medium:
-        
-        data = list (
-            map(
-                lambda p: vars(p),
-                port_list
-            )
-        )
-        
-        if os.path.basename(medium):
-            
-        field_names = ['host', 'port', 'status', 'is_open', 'banner']
+    if "csv" in formattype:
 
+        data = list(map(lambda p: p.to_dict(), port_list))
 
+        fieldnames = ["host", "port", "status", "is_open", "banner"]
 
+        if medium.endswith(".csv"):
+            with open(formattype, 'w') as csvf:
+                writer = csv.DictWriter(csvf, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(data)
+        else:
+            output = io.StringIO()
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(data)
 
-        
+            print(f"\n{output.getvalue()}")
 
+    if "json" in formattype:
 
+        data = list(map(lambda p: p.to_dict(), port_list))
+
+        json_obj = json.dumps(data,indent=5)
+
+         # Check if medium is a file name (contains a file extension)
+        if file:  # If medium is a file name
+            with open(formattype, "w") as jsonf:
+                jsonf.write(json_obj)
+        else:  # Output to terminal
+            print(json_obj)
