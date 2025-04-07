@@ -170,7 +170,7 @@ class SYNScan(Scan):
         self,
         port_list: list[Port],
         port: int,
-        timeout: int,
+        timeout: int = 2,
         retry: int = 0,
         banner: bool = False,
         verbose: bool = False
