@@ -1,4 +1,4 @@
-from scapy.all import IP, TCP, sr1, Ether
+from scapy.all import IP, TCP, sr1, Ether, conf
 from scapy.layers.inet import ICMP
 import socket
 import os
@@ -21,21 +21,24 @@ def get_banner(ip, port):
     finally:
         s.close()
 
-port = 80
+port = 22
 
 cse3320_ip = socket.gethostbyname("cse3320.org")
 
 # print("f2:3c:91:37:3a:7b".upper())
 
-# eth_layer = Ether(dst="f2:3c:91:37:3a:7b".upper())
+eth_layer = Ether(dst="00:15:5d:ff:24:6f".upper())
 
-ip_layer =  IP(dst="127.0.0.1")
+ip_layer =  IP(dst="172.25.110.153")
 tcp_layer = TCP(dport=port, flags="S", sport=12345, seq=1000)
 
-packet = ip_layer / tcp_layer
+packet = eth_layer / ip_layer / tcp_layer
 
-response = sr1(packet, timeout=2, verbose=0)
-print(response.show())
+print(packet.show())
+
+conf.verb = 3
+response = sr1(packet, timeout=2)
+# print(response.show())
  
 if response and response.haslayer(TCP) and response[TCP].flags == "SA":
     # banner = get_banner(cse3320_ip, port).strip()
@@ -44,24 +47,26 @@ if response and response.haslayer(TCP) and response[TCP].flags == "SA":
 else:
     print("No SYN/ACK received.")
 
-# mac = os.popen("curl -s ifconfig.me | arp -n | grep :").read()
-# print(get_host_mac())
+# # mac = os.popen("curl -s ifconfig.me | arp -n | grep :").read()
+# # print(get_host_mac())
 
-user_agent = "Mozilla/5.0"
+# user_agent = "Mozilla/5.0"
 
-port = 80
+# port = 80
 
-try:
-    protocol = "http" if port == 80 else "https"
-    url = f"{protocol}://127.0.0.1:{80}/"
+# try:
+#     protocol = "http" if port == 80 else "https"
+#     url = f"{protocol}://127.0.0.1:{80}/"
 
-    headers = {}
+#     headers = {}
 
-    if user_agent:
-        headers["User-Agent"] = user_agent
+#     if user_agent:
+#         headers["User-Agent"] = user_agent
 
-    response = requests.get(url, headers=headers, timeout=2)
+#     response = requests.get(url, headers=headers, timeout=2)
 
-    print(response.text)
-except requests.exceptions.ConnectionError as e:
-    print(f"Error: {e}")
+#     print(response.text)
+# except requests.exceptions.ConnectionError as e:
+#     print(f"Error: {e}")
+
+print(conf.route)
