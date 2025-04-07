@@ -83,7 +83,7 @@ class Arguements:
             "-p",
             "--port",
             type=self.parse_port_range,
-            default=range(1, 1025),
+            default=range(1,1026),
             help="Specify the range of ports to scan (e.g., 1-1024 or 80)",
         )
         self.parser.add_argument(
@@ -191,8 +191,7 @@ class Arguements:
                     f"Invalid IP address range, {e.args[0]}"
                 )
 
-    def parse_port_range(ports: str):
-
+    def parse_port_range(self, ports: str):
         delim = "," if "," in ports else "-" if "-" in ports else None
         try:
             if not delim:
@@ -202,11 +201,12 @@ class Arguements:
                 return port
             else:
                 start, end = map(int, ports.split(delim))
+                print(start, end)
                 if start > end or start == 0 or end > 65535:
                     raise ValueError
                 return range(start, end + 1)
 
-        except ValueError:
+        except ValueError as e:
             if not delim:
                 raise argparse.ArgumentTypeError(f"Invalid port range'{start} - {end}'")
             else:
