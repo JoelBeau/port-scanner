@@ -17,7 +17,7 @@ def get_ip(host: str):
 
 # Get mac Address of machine
 def get_mac():
-    return  get_if_hwaddr(iface="eth0")
+    return  get_if_hwaddr("eth0")
 
 # Get the gateway mac address
 def get_gateway_mac():

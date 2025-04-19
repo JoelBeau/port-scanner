@@ -4,6 +4,7 @@ import argparse
 import threading
 import ipaddress as ipa
 import socket
+import time
 
 from utils.models import Port, Arguements
 from utils.scanner_utils import output
@@ -48,31 +49,55 @@ cse3320_ip = socket.gethostbyname("cse3320.org")
 tcp_scan = TCPConnect(cse3320_ip)
 syn_scan = SYNScan(cse3320_ip).scan
 
-def syn_scan_wrapper(port):
-    syn_scan(port_list, port, timeout=2,verbose=True)
+# ports = range(1,81)
 
-with ThreadPoolExecutor(max_workers=500) as exe:
-    exe.map(syn_scan_wrapper, ports)
+# def syn_scan_wrapper(port):
+#     syn_scan(port_list, port, timeout=2,verbose=True)
+
+# with ThreadPoolExecutor(max_workers=500) as exe:
+#     exe.map(syn_scan_wrapper, ports)
 
 # syn_scan(port_list, 22, timeout=2, banner=True, verbose=True)
 # syn_scan(port_list, 80, timeout=2, verbose=True)
 
 # output(port_list, medium=out)
 
+# Define the batch size (number of ports per thread)
+ports = range(1,65535)
+BATCH_SIZE = 10
 
-# Test the first 50 ports
-for p in ports:
-    thread = threading.Thread(
-        target=syn_scan, args=(port_list, p, 2, 0, False, True)
-    )
+# Split the ports into batches
+port_batches = [ports[i:i + BATCH_SIZE] for i in range(0, len(ports), BATCH_SIZE)]
+
+# Function to scan a batch of ports
+def scan_batch(port_list, batch):
+    for port in batch:
+        syn_scan(port_list, port, 2, 0, False, True)
+
+# Create and start threads for each batch
+for batch in port_batches:
+    thread = threading.Thread(target=scan_batch, args=(port_list, batch))
     scanning_threads.append(thread)
     thread.start()
 
+# Wait for all threads to finish
 for t in scanning_threads:
     t.join()
 
-# port_list.sort(key=lambda x: x.get_port())
 
-# for p in port_list:
-#     # if p.check():
-#     print(p)
+# for p in ports:
+#     thread = threading.Thread(
+#         target=syn_scan, args=(port_list, p, 2, 0, False, True)
+#     )
+#     scanning_threads.append(thread)
+#     thread.start()
+
+# for t in scanning_threads:
+#     t.join()
+
+
+# Sort and print the results
+port_list.sort(key=lambda x: x.get_port())
+for p in port_list:
+    print(p)
+print(len(port_list))

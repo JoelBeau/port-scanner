@@ -1,4 +1,4 @@
-from scapy.all import IP, TCP, srp, conf, arping, get_if_hwaddr
+from scapy.all import IP, TCP, sr1, conf, arping, get_if_hwaddr
 from scapy.layers.inet import ICMP, Ether
 import socket
 import os
@@ -21,9 +21,9 @@ def get_banner(ip, port):
     finally:
         s.close()
 
-port = 22
+port = 80
 
-cse3320_ip = socket.gethostbyname("cse3320.org")
+cse3320_ip = socket.gethostbyname("cse4380.org")
 
 def get_gateway_mac():
     gw_ip = conf.route.route(cse3320_ip)[2]  # or use your target IP
@@ -41,21 +41,35 @@ gateway_mac = get_gateway_mac()
 print("Gateway MAC Address: ", gateway_mac)
 
 # print("f2:3c:91:37:3a:7b".upper())
-eth_layer = Ether(dst=gateway_mac)
+# eth_layer = Ether(dst=gateway_mac)
 
-ip_layer =  IP(dst=cse3320_ip)
-tcp_layer = TCP(dport=port, flags="S", sport=12345, seq=1000)
+# ip_layer =  IP(dst=cse3320_ip)
+# tcp_layer = TCP(dport=port, flags="S", sport=12345, seq=1000)
 
-packet = eth_layer / ip_layer / tcp_layer
+# packet = eth_layer / ip_layer / tcp_layer
 
-print(packet.show())
+# print(packet.show())
 
-conf.verb = 3
-response = srp(packet, iface="eth0")
+# conf.verb = 3
+# response = srp(packet, iface="eth0", timeout=2)
 
-sndrcv = response[0]
+# sndrcv = response[0]
 
-_, rcv = sndrcv[0]
+# _, rcv = sndrcv[0]
+
+# print(rcv.show())
+# print(rcv.haslayer(TCP))
+
+ip_layer = IP(dst=cse3320_ip)
+
+# Create TCP layer with SYN flag set
+tcp_layer = TCP(dport=port, flags="S", sport=12345)
+
+# Stack the layers on top of eachother
+packet = ip_layer / tcp_layer
+
+# Sends packet an returns answer
+rcv = sr1(packet, timeout=2)
 
 print(rcv.show())
 

@@ -1,3 +1,4 @@
+from random import randint
 import socket
 import threading
 
@@ -170,6 +171,7 @@ class SYNScan(Scan):
         super().__init__(host)
         self.gateway_mac = get_gateway_mac()
         self.host_mac = get_mac()
+        self.sport = 1025
 
     def scan(
         self,
@@ -197,7 +199,9 @@ class SYNScan(Scan):
         ip_layer = IP(dst=host)
 
         # Create TCP layer with SYN flag set
-        tcp_layer = TCP(dport=port, flags="S", sport=12345)
+        tcp_layer = TCP(dport=port, flags="S", sport=self.sport)
+
+        self.sport += 1
 
         # Stack the layers on top of eachother
         packet = eth_layer / ip_layer / tcp_layer
@@ -209,7 +213,14 @@ class SYNScan(Scan):
         sndrcv = response[0]
 
         # Get the first packet in the response
-        _, rcv = sndrcv[0]
+        try:
+            _, rcv = sndrcv[0]
+        except IndexError:
+            print(
+                f"\nFAILURE, unable to get response from host {host} on port {port}!"
+            )
+            print(sndrcv.show())
+            return
 
         status = None
 
@@ -221,7 +232,7 @@ class SYNScan(Scan):
                     status = "OPEN"
                 if tcp_flags == "AR":
                     status = "CLOSED"
-            if response.haslayer(ICMP):
+            if rcv.haslayer(ICMP):
                 r_code = rcv[ICMP].code
                 if r_code == 10:
                     status = "FILTERED"
