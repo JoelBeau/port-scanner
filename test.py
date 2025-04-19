@@ -1,5 +1,5 @@
-from scapy.all import IP, TCP, sr1, Ether, conf
-from scapy.layers.inet import ICMP
+from scapy.all import IP, TCP, srp, conf, arping, get_if_hwaddr
+from scapy.layers.inet import ICMP, Ether
 import socket
 import os
 import requests
@@ -25,11 +25,25 @@ port = 22
 
 cse3320_ip = socket.gethostbyname("cse3320.org")
 
+def get_gateway_mac():
+    gw_ip = conf.route.route(cse3320_ip)[2]  # or use your target IP
+    ans, _ = arping(gw_ip, timeout=2, verbose=False)
+    for _, rcv in ans:
+        return rcv[Ether].src
+    return None
+
+iface = "eth0"  # or "wlan0" or whatever interface you're using
+mac_address = get_if_hwaddr(iface)
+
+print(f"Your MAC address on {iface} is: {mac_address}")
+
+gateway_mac = get_gateway_mac()
+print("Gateway MAC Address: ", gateway_mac)
+
 # print("f2:3c:91:37:3a:7b".upper())
+eth_layer = Ether(dst=gateway_mac)
 
-eth_layer = Ether(dst="00:15:5d:ff:24:6f".upper())
-
-ip_layer =  IP(dst="172.25.110.153")
+ip_layer =  IP(dst=cse3320_ip)
 tcp_layer = TCP(dport=port, flags="S", sport=12345, seq=1000)
 
 packet = eth_layer / ip_layer / tcp_layer
@@ -37,15 +51,20 @@ packet = eth_layer / ip_layer / tcp_layer
 print(packet.show())
 
 conf.verb = 3
-response = sr1(packet, timeout=2)
-# print(response.show())
- 
-if response and response.haslayer(TCP) and response[TCP].flags == "SA":
-    # banner = get_banner(cse3320_ip, port).strip()
-    # print("Banner: ", banner)
-    print("Received SYN/ACK!")
-else:
-    print("No SYN/ACK received.")
+response = srp(packet, iface="eth0")
+
+sndrcv = response[0]
+
+_, rcv = sndrcv[0]
+
+print(rcv.show())
+
+# if response and response.haslayer(TCP) and response[TCP].flags == "SA":
+#     # banner = get_banner(cse3320_ip, port).strip()
+#     # print("Banner: ", banner)
+#     print("Received SYN/ACK!")
+# else:
+#     print("No SYN/ACK received.")
 
 # # mac = os.popen("curl -s ifconfig.me | arp -n | grep :").read()
 # # print(get_host_mac())
@@ -69,4 +88,4 @@ else:
 # except requests.exceptions.ConnectionError as e:
 #     print(f"Error: {e}")
 
-print(conf.route)
+# print(conf.route)
