@@ -4,7 +4,8 @@ import io
 import csv
 import json
 
-from scapy.all import get_if_hwaddr
+from scapy.all import get_if_hwaddr, conf, arping
+from scapy.layers.inet import Ether
 
 from tabulate import tabulate
 from .models import Port
@@ -14,10 +15,17 @@ from .models import Port
 def get_ip(host: str):
     return socket.gethostbyname(host)
 
-
 # Get mac Address of machine
 def get_mac(ip: str):
     return  get_if_hwaddr(iface="eth0")
+
+# Get the gateway mac address
+def get_gateway_mac():
+    gw_ip = conf.route.route("8.8.8.8")[2]  # or use your target IP
+    ans, _ = arping(gw_ip, timeout=2, verbose=False)
+    for _, rcv in ans:
+        return rcv[Ether].src
+    return None
 
 
 # Ensure ip is reachable
