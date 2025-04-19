@@ -16,7 +16,7 @@ def get_ip(host: str):
     return socket.gethostbyname(host)
 
 # Get mac Address of machine
-def get_mac(ip: str):
+def get_mac():
     return  get_if_hwaddr(iface="eth0")
 
 # Get the gateway mac address
