@@ -6,9 +6,9 @@ import requests
 from utils.models import Port
 from abc import ABC, abstractmethod
 
-from scapy.all import sr1, conf
+from scapy.all import srp, conf
 from scapy.layers.inet import ICMP, IP, TCP, Ether
-from .scanner_utils import get_mac
+from .scanner_utils import get_mac, get_gateway_mac
 
 
 class Scan(ABC):
@@ -166,6 +166,11 @@ class TCPConnect(Scan):
 
 class SYNScan(Scan):
 
+    def __init__(self, host: str):
+        super().__init__(host)
+        self.gateway_mac = get_gateway_mac()
+        self.host_mac = get_mac()
+
     def scan(
         self,
         port_list: list[Port],
@@ -187,8 +192,7 @@ class SYNScan(Scan):
         host = self.host
 
         # Ether layer for the packet
-        # eth_layer = Ether(dst=get_mac(host).upper())
-
+        eth_layer = Ether(dst=self.gateway_mac, src=self.host_mac)
         # Create IP layer for SYN packet
         ip_layer = IP(dst=host)
 
@@ -196,23 +200,29 @@ class SYNScan(Scan):
         tcp_layer = TCP(dport=port, flags="S", sport=12345)
 
         # Stack the layers on top of eachother
-        packet = ip_layer / tcp_layer
+        packet = eth_layer / ip_layer / tcp_layer
 
         # Sends packet an returns answer
-        response = sr1(packet, timeout=timeout)
+        response = srp(packet, iface="eth0", timeout=timeout)
+
+        # Get the first response from the packet
+        sndrcv = response[0]
+
+        # Get the first packet in the response
+        _, rcv = sndrcv[0]
 
         status = None
 
-        if response:
-            if response.haslayer(TCP):
+        if rcv:
+            if rcv.haslayer(TCP):
                 # Get tcp flags from the packet response
-                tcp_flags = response[TCP].flags
+                tcp_flags = rcv[TCP].flags
                 if tcp_flags == "SA":
                     status = "OPEN"
                 if tcp_flags == "AR":
                     status = "CLOSED"
             if response.haslayer(ICMP):
-                r_code = response[ICMP].code
+                r_code = rcv[ICMP].code
                 if r_code == 10:
                     status = "FILTERED"
         else:
