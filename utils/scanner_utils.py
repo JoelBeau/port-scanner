@@ -4,8 +4,9 @@ import io
 import csv
 import json
 
-from tabulate import tabulate
+from scapy.all import get_if_hwaddr
 
+from tabulate import tabulate
 from .models import Port
 
 
@@ -14,9 +15,9 @@ def get_ip(host: str):
     return socket.gethostbyname(host)
 
 
-# Get mac Address of given ipaddress
+# Get mac Address of machine
 def get_mac(ip: str):
-    return os.popen(f"curl -s ifconfig.me | arp -n {ip} | grep :").read().split()[2]
+    return  get_if_hwaddr(iface="eth0")
 
 
 # Ensure ip is reachable
