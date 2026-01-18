@@ -7,7 +7,7 @@ import requests
 from utils.models import Port
 from abc import ABC, abstractmethod
 
-from scapy.all import srp, conf
+from scapy.all import sr1, send, conf
 from scapy.layers.inet import ICMP, IP, TCP, Ether
 from .scanner_utils import get_mac, get_gateway_mac
 
@@ -186,83 +186,49 @@ class SYNScan(Scan):
         # If verbose is not set, then supress scapy's INFO prints
         if not verbose:
             conf.verb = 0
-
         if verbose:
             self.verbosity_print(port, type="a")
 
-        # Set the host value to the super classes host
         host = self.host
 
-        # Ether layer for the packet
-        eth_layer = Ether(dst=self.gateway_mac, src=self.host_mac)
-        # Create IP layer for SYN packet
-        ip_layer = IP(dst=host)
+        # deterministic sport (thread-safe)
+        sport = 40000 + (port % 20000)
 
-        # Create TCP layer with SYN flag set
-        tcp_layer = TCP(dport=port, flags="S", sport=self.sport)
+        status = "FILTERED"
+        response = None
 
-        self.sport += 1
+        for _ in range(retry + 1):
+            pkt = IP(dst=host) / TCP(dport=port, flags="S", sport=sport)
+            response = sr1(pkt, timeout=timeout, verbose=0)
 
-        # Stack the layers on top of eachother
-        packet = eth_layer / ip_layer / tcp_layer
+            if response is not None:
+                break
 
-        # Sends packet an returns answer
-        response = srp(packet, iface="eth0", timeout=timeout)
+        if response is not None:
+            if response.haslayer(TCP):
+                flags = response[TCP].flags
 
-        # Get the first response from the packet
-        sndrcv = response[0]
-
-        # Get the first packet in the response
-        try:
-            _, rcv = sndrcv[0]
-        except IndexError:
-            print(
-                f"\nFAILURE, unable to get response from host {host} on port {port}!"
-            )
-            print(sndrcv.show())
-            return
-
-        status = None
-
-        if rcv:
-            if rcv.haslayer(TCP):
-                # Get tcp flags from the packet response
-                tcp_flags = rcv[TCP].flags
-                if tcp_flags == "SA":
+                if flags & 0x12 == 0x12:  # SYN/ACK
                     status = "OPEN"
-                if tcp_flags == "AR":
+                    # RST+ACK using the same sport
+                    rst = IP(dst=host) / TCP(
+                        sport=sport, dport=port, flags="RA",
+                        seq=response[TCP].ack, ack=response[TCP].seq + 1
+                    )
+                    send(rst, verbose=0)
+
+                elif flags & 0x04:  # RST
                     status = "CLOSED"
-            if rcv.haslayer(ICMP):
-                r_code = rcv[ICMP].code
-                if r_code == 10:
-                    status = "FILTERED"
-        else:
-            # If no response, then port is filtered
-            status = "FILTERED"
 
-        # If the status is closed or filtered and the rety amount is > 0, recursevily try until connection succeeds or number of retries runs out
-        if status == "CLOSED" or status == "FILTERED":
-            if retry > 0:
-                retry -= 1
-                self.scan(port_list, port, timeout, retry, verbose)
-                return
+            elif response.haslayer(ICMP) and response[ICMP].type == 3:
+                status = "FILTERED"
 
-        # Determine if the port is open based on the status
-        is_open = True if status == "OPEN" else False
-
-        # Create port object of the port we just tested
+        is_open = (status == "OPEN")
         tested_port = Port(self.host, port, status, is_open)
 
-        # If the port is open and the banner flag has been enabled, get the banner and add it to the object
-        if tested_port.get_status() == "OPEN":
-            if banner:
-                service = self.get_running_service(tested_port)
-                tested_port.set_banner(service)
-
-        # After any retries, if verbosity is enabled print and add to list else just add to list
-        if verbose:
-            self.verbosity_print(port_obj=tested_port)
-
-        # With the mutex, append the port to the port list
+        if is_open and banner:
+            service = self.get_running_service(tested_port)
+            tested_port.set_banner(service)
+        
         with self.lock:
             port_list.append(tested_port)
