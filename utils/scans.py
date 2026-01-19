@@ -1,33 +1,24 @@
-from random import randint
 import socket
 import threading
+import time
+import asyncio
+from typing import Optional
 
-import requests
+import aiohttp
 
 from utils.models import Port
 from abc import ABC, abstractmethod
 
-from scapy.all import sr1, send, conf
-from scapy.layers.inet import ICMP, IP, TCP, Ether
-from .scanner_utils import get_mac, get_gateway_mac
+from scapy.all import AsyncSniffer, send, conf
+from scapy.layers.inet import ICMP, IP, TCP, TCPerror
 
 
 class Scan(ABC):
 
-    def __init__(self, host: str):
+    def __init__(self, host: str, verbose: bool = False):
         self.host = host
         self.lock = threading.Lock()
-
-    @abstractmethod
-    def scan(
-        self,
-        port_list: list[Port],
-        port: int,
-        timeout: int,
-        rety: int = 0,
-        verbose: bool = False,
-    ):
-        pass
+        self.verbose = verbose
 
     def verbosity_print(
         self, port: int = None, port_obj: Port = None, type: str = "result"
@@ -68,167 +59,295 @@ class Scan(ABC):
 
         return banner if banner else "No service to be found on open port"
 
+    def chunks(self, seq, size):
+        seq = list(seq)
+        for i in range(0, len(seq), size):
+            yield seq[i : i + size]
+
+    @abstractmethod
+    def scan_host(
+        self, port_list, ports, timeout=1.5, retry=0, banner=False, verbose=False
+    ):
+        pass
+
 
 class TCPConnect(Scan):
 
-    def scan(
+    async def _connect_one(self, port: int, timeout: float = 2) -> str:
+        try:
+            conn = asyncio.open_connection(self.host, port)
+            _, writer = await asyncio.wait_for(conn, timeout=timeout)
+            writer.close()
+
+            # ensure the writer is closed
+            try:
+                await writer.wait_closed()
+            except Exception:
+                pass
+            return "OPEN"
+        except (ConnectionRefusedError, OSError) as e:
+            if isinstance(e, ConnectionRefusedError):
+                return "CLOSED"
+            if getattr(e, "errno", None) in (113, 101, 110):
+                return "FILTERED"
+            return "FILTERED"
+        except asyncio.TimeoutError:
+            return "FILTERED"
+
+    async def _scan_batch_connect(
         self,
-        port_list: list[Port],
-        port: int,
-        timeout: int,
-        user_agent=None,
+        port_list,
+        ports,
+        timeout: float = 1.0,
+        concur: int = 450,
         retry: int = 0,
         banner: bool = False,
-        verbose: bool = False,
     ):
-        status = None
-        tested_port = None
-
-        http_ports = [80, 443]
-
         host = self.host
+        sem = asyncio.Semaphore(concur)
 
-        # If verbosity is enabled, print
-        if verbose:
-            self.verbosity_print(port, type="a")
+        async def scan_port(port: int):
+            if self.verbose:
+                self.verbosity_print(port, type="a")
 
-        # Check if port is an http port if not proceed with raw sockets
-        if port not in http_ports:
-            # Creates a socket denoting which IP protocol to be used and the type of port to open i.e. TCP
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(timeout)
+            # retry loop (avoid recursion)
+            status = "FILTERED"
 
-            # Tries to connect to the specified host and port, if successful, sets the is_open variable to true, if it doesn't & an error arrises, nothing is changed
+            for attempt in range(retry + 1):
+                if self.verbose and attempt > 0:
+                    print(f"Attempting retry {attempt} for port {port}...")
+
+                async with sem:
+                    status = await self._connect_one(port, timeout)
+                if status == "OPEN":
+                    break
+
+            tested = Port(host, port, status, status == "OPEN")
+
+            if tested.get_status() == "OPEN" and banner:
+                # banner grabbing might be blocking; if so, offload to thread
+                service = await asyncio.to_thread(self.get_running_service, tested)
+                tested.set_banner(service)
+
+            if self.verbose:
+                self.verbosity_print(port_obj=tested)
+
+            return tested
+
+        tasks = [asyncio.create_task(scan_port(p)) for p in ports]
+
+        # gather results as they complete (keeps memory steady-ish)
+        for t in asyncio.as_completed(tasks):
+            port_list.append(await t)
+    
+
+
+    async def grab_http_banner_aiohttp(self,
+        host: str,
+        port: int,
+        timeout: float = 2.0,
+        user_agent = None,
+    ):
+        """
+        HTTP/HTTPS banner via aiohttp: returns status + key headers (Server, X-Powered-By).
+        Works for typical web ports; will NOT work for SSH, etc.
+        """
+        scheme = "https" if port == 443 else "http"
+        url = f"{scheme}://{host}:{port}/"
+
+        headers = {}
+        if user_agent:
+            headers["User-Agent"] = user_agent
+
+        timeout_cfg = aiohttp.ClientTimeout(total=timeout)
+
+        try:
+            async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+                async with session.get(url, headers=headers, allow_redirects=True) as resp:
+                    server = resp.headers.get("Server")
+                    powered = resp.headers.get("X-Powered-By")
+
+                    # read a tiny bit so some servers actually respond (but keep it cheap)
+                    _ = await resp.content.read(200)
+
+                    parts = [f"HTTP {resp.status}"]
+                    if server:
+                        parts.append(f"Server: {server}")
+                    if powered:
+                        parts.append(f"X-Powered-By: {powered}")
+                    return " | ".join(parts)
+
+        except (asyncio.TimeoutError, aiohttp.ClientError):
+            return None
+
+
+    async def grab_ssh_banner(self,
+        host: str,
+        port: int = 22,
+        timeout: float = 2.0,
+    ) -> Optional[str]:
+        """
+        SSH banner via raw TCP. SSH servers usually speak first.
+        Returns line like: 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3'
+        """
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port),
+                timeout=timeout,
+            )
             try:
-                s.connect((host, port))
-                status = "OPEN"
-            except socket.timeout and OSError as e:
-                if type(e) == OSError:
-                    if e.errno == 113:
-                        status = "FILTERED"
-                else:
-                    # If it is a timeout error, then that also means firewall is blocking it
-                    status = "FILTERED"
-            except ConnectionRefusedError:
-                # If connection is refused, this means port is closed
-                status = "CLOSED"
+                line = await asyncio.wait_for(reader.readline(), timeout=timeout)
             finally:
-                s.close()
-        else:
-            # if the port is a http port, make an https request
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+            banner = line.decode("utf-8", errors="ignore").strip()
+            return banner or None
+
+        except Exception as e:
+            return None
+
+
+    async def grab_generic_banner(
+        host: str,
+        port: int,
+        timeout: float = 2.0,
+        read_bytes: int = 1024,
+    ) -> Optional[str]:
+        """
+        Best-effort generic banner grab:
+        - connects
+        - waits briefly for the server to send something (for 'speak-first' protocols)
+        Does NOT send protocol-specific handshakes.
+        """
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port),
+                timeout=timeout,
+            )
             try:
-                protocol = "http" if port == 80 else "https"
-                url = f"{protocol}://{host}:{port}/"
+                data = await asyncio.wait_for(reader.read(read_bytes), timeout=timeout)
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception:
+                    pass
 
-                headers = {}
+            if not data:
+                return None
 
-                if user_agent:
-                    headers["User-Agent"] = user_agent
+            # Keep printable-ish output
+            text = data.decode("utf-8", errors="ignore").strip()
+            return text or None
 
-                response = requests.get(url, headers=headers, timeout=2).text
+        except Exception:
+            return None
 
-                # If there is text in the response, then that connection succeeded
-                if response:
-                    status = "OPEN"
+    async def grab_banner_for_port(self, host: str, port: int) -> Optional[str]:
+        if port == 22:
+            return await self.grab_ssh_banner(host, port)
+        if port in (80, 443):
+            return await self.grab_http_banner_aiohttp(host, port, user_agent="MyScanner/1.0")
+        return await self.grab_generic_banner(host, port)
 
-            # If there is a TimeoutError, then the host has some sort of firewall blocking access to that port
-            except requests.exceptions.ConnectTimeout:
-                status = "FILTERED"
-            # If there is a ConnectionError, then the host has explicitly closed that port
-            except requests.exceptions.ConnectionError:
-                status = "CLOSED"
-
-        # If the port connection fails, and the rety flag is set with x, then recursively try until retries runs out or connection succeeds
-        if status == "CLOSED" or status == "FILTERED":
-            if retry > 0:
-                retry -= 1
-                self.scan(port_list, port, timeout, user_agent, retry, verbose)
-                return
-
-        # Determine if the port is open based on the status
-        is_open = True if status == "OPEN" else False
-
-        # Create port object of the port we just tested
-        tested_port = Port(self.host, port, status, is_open)
-
-        # If the port is open and the banner flag has been enabled, get the banner and add it to the object
-        if tested_port.get_status() == "OPEN":
+    async def banner_phase(self, port_objs, concur: int = 50):
+        sem = asyncio.Semaphore(concur)
+        async def one(pobj):
+            if pobj.get_status() != "OPEN":
+                return pobj
+            async with sem:
+                banner = await self.grab_banner_for_port(self.host, pobj.get_port())
             if banner:
-                service = self.get_running_service(tested_port)
-                tested_port.set_banner(service)
+                pobj.set_banner(banner)
+            return pobj
 
-        # After doing any retries, if verbose, print and add to list else just print
-        if verbose:
-            self.verbosity_print(port_obj=tested_port)
-        # With the mutex lock, append the port to the port list
-        with self.lock:
-            port_list.append(tested_port)
+        return await asyncio.gather(*(one(p) for p in port_objs))
+
+    def scan_host(self, port_list, ports, timeout=1.5, retry=0, banner=False):
+        asyncio.run(
+            self._scan_batch_connect(
+                port_list, ports, timeout, concur=200, retry=retry, banner=banner
+            )
+        )
+        asyncio.run(self.banner_phase(port_list, concur=50))
 
 
 class SYNScan(Scan):
 
     def __init__(self, host: str):
         super().__init__(host)
-        self.gateway_mac = get_gateway_mac()
-        self.host_mac = get_mac()
-        self.sport = 1025
 
-    def scan(
+    def scan_single(self, port_list, port, timeout, retry=0, verbose=False):
+        return None
+
+    def scan_batch(
         self,
         port_list: list[Port],
-        port: int,
+        ports: range,
         timeout: int = 2,
         retry: int = 0,
-        banner: bool = False,
-        verbose: bool = False
+        verbose: bool = False,
     ):
-
-        # If verbose is not set, then supress scapy's INFO prints
-        if not verbose:
-            conf.verb = 0
-        if verbose:
-            self.verbosity_print(port, type="a")
-
         host = self.host
+        base_sport = 40000
+        # map sport -> dport so we can correlate replies
+        sport_map = {
+            base_sport + i: p for i, p in enumerate(ports)
+        }  # our_sport -> scanned_port
 
-        # deterministic sport (thread-safe)
-        sport = 40000 + (port % 20000)
+        pkts = [
+            IP(dst=host) / TCP(sport=our_sport, dport=scanned_port, flags="S", seq=1000)
+            for our_sport, scanned_port in sport_map.items()
+        ]
 
-        status = "FILTERED"
-        response = None
+        conf.use_pcap = True
 
-        for _ in range(retry + 1):
-            pkt = IP(dst=host) / TCP(dport=port, flags="S", sport=sport)
-            response = sr1(pkt, timeout=timeout, verbose=0)
+        sn = AsyncSniffer(
+            iface="eth0", filter=f"tcp or icmp and src host {host}", store=True
+        )
+        sn.start()
 
-            if response is not None:
-                break
+        # send all SYNs
+        send(pkts, verbose=3)
 
-        if response is not None:
-            if response.haslayer(TCP):
-                flags = response[TCP].flags
+        time.sleep(timeout)  # let replies arrive
+        # capture TCP replies from target host to our sports
+        replies = sn.stop()
 
-                if flags & 0x12 == 0x12:  # SYN/ACK
-                    status = "OPEN"
-                    # RST+ACK using the same sport
-                    rst = IP(dst=host) / TCP(
-                        sport=sport, dport=port, flags="RA",
-                        seq=response[TCP].ack, ack=response[TCP].seq + 1
-                    )
-                    send(rst, verbose=0)
+        print(f"Captured {len(replies)} replies")
 
-                elif flags & 0x04:  # RST
-                    status = "CLOSED"
+        status = {p: "FILTERED" for p in ports}
+        seen = set()
 
-            elif response.haslayer(ICMP) and response[ICMP].type == 3:
-                status = "FILTERED"
+        for pkt in replies:
+            if pkt.haslayer(TCP):
+                tcp = pkt[TCP]
+                our_sport = int(tcp.dport)
+                scanned_port = sport_map[our_sport]
+                if scanned_port is None:
+                    continue
+                flags = tcp.flags
+                if flags & 0x12 == 0x12:
+                    status[scanned_port] = "OPEN"
+                elif flags & 0x04:
+                    status[scanned_port] = "CLOSED"
+                seen.add(scanned_port)
+            elif pkt.haslayer(ICMP) and pkt[ICMP].type == 3:
+                icmp = pkt[ICMP]
+                our_sport = icmp.sport
+                scanned_port = sport_map[our_sport]
+                status[scanned_port] = "FILTERED"
+                seen.add(scanned_port)
 
-        is_open = (status == "OPEN")
-        tested_port = Port(self.host, port, status, is_open)
-
-        if is_open and banner:
-            service = self.get_running_service(tested_port)
-            tested_port.set_banner(service)
-        
-        with self.lock:
+        for p in ports:
+            tested_port = Port(self.host, p, status[p], status[p] == "OPEN")
             port_list.append(tested_port)
+
+    def scan_host(
+        self, port_list, ports, timeout=1.5, retry=0, banner=False, verbose=False
+    ):
+        for chunk in super().chunks(ports, 2000):
+            self.scan_batch(port_list, chunk, timeout, retry, verbose)
