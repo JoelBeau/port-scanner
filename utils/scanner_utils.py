@@ -4,7 +4,6 @@ import io
 import csv
 import json
 
-from scapy.all import get_if_hwaddr, conf, arping
 from scapy.layers.inet import Ether
 
 from tabulate import tabulate
@@ -19,7 +18,6 @@ def get_ip(host: str):
 def check_ip(ip: str):
     output = os.popen(f"ping {ip} -c 4").read()
     return False if "not known" in output else True
-
 
 # Skeleton for outputing results
 def output(port_list: list[Port], medium: tuple):
