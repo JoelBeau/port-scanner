@@ -46,10 +46,10 @@ scanning_threads: list[threading.Thread] = []
 cse3320_ip = socket.gethostbyname("cse3320.org")
 cse4380_ip = socket.gethostbyname("cse4380.org")
 
-tcp_scan = TCPConnect(cse3320_ip, True)
+tcp_scan = TCPConnect(cse3320_ip, 2, True)
 syn_scan = SYNScan(cse3320_ip)
 
-ports = range(1, 81)
+ports = range(1, 15000)
 
 s = time.time()
 
@@ -62,15 +62,15 @@ s = time.time()
 
 # for t in scanning_threads:
 #     t.join()
-tcp_scan.scan_host(port_list, ports)
+# syn_scan.scan_host(port_list, ports)
 
 
-# Sort and print the results
-port_list.sort(key=lambda x: x.get_port())
-for p in port_list:
-    print(p, p.get_banner())
-print(len(port_list))
+# # Sort and print the results
+# port_list.sort(key=lambda x: x.get_port())
+# for p in port_list:
+#     print(p, p.get_banner())
+# print(len(port_list))
 
-e = time.time()
-print(f"Scanning completed in {e - s}")
+# e = time.time()
+# print(f"Scanning completed in {e - s}")
 
