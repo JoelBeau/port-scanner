@@ -1,0 +1,20 @@
+from utils.logger import logger
+
+MAX_VERBOSITY = 3
+MEDIUM_VERBOSITY = 2
+MINIMUM_VERBOSITY = 1
+DEFAULT_VERBOSITY = 0
+
+HTTP_PORTS = {80, 8080}
+HTTPS_PORTS = {443, 8443}
+ALL_HTTP_PORTS = HTTP_PORTS.union(HTTPS_PORTS)
+SSH_PORT = 22
+
+DEFAULT_TIMEOUT = 1.5
+
+SYN_SCAN_BATCH_SIZE = 2000
+
+LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+DEFAULT_READ_BYTES = 1024
+
