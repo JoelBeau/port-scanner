@@ -18,14 +18,16 @@ import utils.conf as conf
 
 class Scan(ABC):
 
-    def __init__(
-        self, host: str, verbosity: int = conf.DEFAULT_VERBOSITY, banner: bool = False
-    ):
+    def __init__(self, host: str, **flags):
         self.host = host
-        self.lock = threading.Lock()
-        self.verbosity = verbosity
-        self.banner = banner
-        scapy_conf.verb = verbosity
+        self.ports = flags.get("port")
+        self.verbosity = flags.get("verbosity")
+        self.retry = flags.get("retry")
+        self.timeout = flags.get("timeout")
+        self.user_agent = flags.get("user_agent")
+        self.banner = flags.get("banner")
+
+        scapy_conf.verb = self.verbosity
 
     def verbosity_print(self, port_obj: Port):
         host = self.host
@@ -46,22 +48,15 @@ class Scan(ABC):
             print(f"\nSUCCESS! Port {port} is open on {host}")
 
     @abstractmethod
-    def scan_host(
-        self, port_list, ports, timeout=1.5, retry=0, banner=False, verbose=False
-    ):
+    def scan_host(self, port_list):
         pass
 
-    async def grab_http_banner_aiohttp(
-        self,
-        host: str,
-        port: int,
-        user_agent: Optional[str] = None,
-    ):
+    async def grab_http_banner_aiohttp(self, port: int):
         """
         HTTP/HTTPS banner via aiohttp: returns status + key headers (Server, X-Powered-By).
         Works for typical web ports; will NOT work for SSH, etc.
         """
-        logger_message = f"Grabbing HTTP banner from {host}:{port}..."
+        logger_message = f"Grabbing HTTP banner from {self.host}:{port}..."
         logger.info(logger_message)
 
         if self.verbosity == conf.MAX_VERBOSITY:
@@ -74,11 +69,11 @@ class Scan(ABC):
 
         logger.warning(f"Using scheme {scheme} for banner grabbing on port {port}.")
 
-        url = f"{scheme}://{host}:{port}/"
+        url = f"{scheme}://{self.host}:{port}/"
 
         headers = {}
-        if user_agent:
-            headers["User-Agent"] = user_agent
+        if self.user_agent:
+            headers["User-Agent"] = self.user_agent
 
         timeout_cfg = aiohttp.ClientTimeout(total=conf.DEFAULT_TIMEOUT)
 
@@ -93,7 +88,7 @@ class Scan(ABC):
                     server = resp.headers.get("Server")
                     powered = resp.headers.get("X-Powered-By")
 
-                    # read a tiny bit so some servers actually respond
+                    # Read a tiny bit if needed
                     _ = await resp.content.read(200)
 
                     parts = [f"HTTP {resp.status}"]
@@ -104,28 +99,29 @@ class Scan(ABC):
                     return " | ".join(parts)
 
         except (asyncio.TimeoutError, aiohttp.ClientError) as e:
-            logger.error(f"{scheme} banner grab failed on {host}:{port} due to {e}")
+            logger.error(
+                f"{scheme} banner grab failed on {self.host}:{port} due to {e}"
+            )
             return None
 
     async def grab_ssh_banner(
         self,
-        host: str,
         port: int = 22,
     ) -> Optional[str]:
         """
         SSH banner via raw TCP. SSH servers usually speak first.
         Returns line like: 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3'
         """
-        logger_message = f"Grabbing SSH banner from {host}:{port}..."
+        logger_message = f"Grabbing SSH banner from {self.host}:{port}..."
         logger.info(logger_message)
 
         if self.verbosity == conf.MAX_VERBOSITY:
             print(logger_message)
 
         try:
-            logger.info(f"Connecting to {host}:{port} for SSH banner grab...")
+            logger.info(f"Connecting to {self.host}:{port} for SSH banner grab...")
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port),
+                asyncio.open_connection(self.host, port),
                 timeout=conf.DEFAULT_TIMEOUT,
             )
             try:
@@ -144,16 +140,10 @@ class Scan(ABC):
             return banner
 
         except Exception as e:
-            logger.error(f"SSH banner grab failed on {host}:{port} due to {e}")
+            logger.error(f"SSH banner grab failed on {self.host}:{port} due to {e}")
             return None
 
-    async def grab_service_banner(
-        self,
-        host: str,
-        port: int,
-        timeout: float = conf.DEFAULT_TIMEOUT,
-        read_bytes: int = conf.DEFAULT_READ_BYTES,
-    ) -> Optional[str]:
+    async def grab_service_banner(self, port: int) -> Optional[str]:
         """
         Best-effort service banner grab:
         - connects
@@ -161,21 +151,23 @@ class Scan(ABC):
         """
 
         if self.verbosity == conf.MAX_VERBOSITY:
-            print(f"Grabbing running service banner from {host}:{port}...")
+            print(f"Grabbing running service banner from {self.host}:{port}...")
 
-        logger.info(f"Grabbing running service banner from {host}:{port}...")
+        logger.info(f"Grabbing running service banner from {self.host}:{port}...")
 
         try:
-            logger.info(f"Connecting to {host}:{port} for service banner grab...")
+            logger.info(f"Connecting to {self.host}:{port} for service banner grab...")
             reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port),
-                timeout=timeout,
+                asyncio.open_connection(self.host, port),
+                timeout=self.timeout,
             )
             try:
                 logger.info(
-                    f"Waiting to read up to {read_bytes} bytes from {host}:{port}..."
+                    f"Waiting to read up to {conf.DEFAULT_READ_BYTES} bytes from {self.host}:{port}..."
                 )
-                data = await asyncio.wait_for(reader.read(read_bytes), timeout=timeout)
+                data = await asyncio.wait_for(
+                    reader.read(conf.DEFAULT_READ_BYTES), timeout=self.timeout
+                )
             finally:
                 writer.close()
                 try:
@@ -187,22 +179,26 @@ class Scan(ABC):
             if not data:
                 return None
 
-            logger.info(f"Received banner data from {host}:{port}: {data}")
+            logger.info(f"Received banner data from {self.host}:{port}: {data}")
             text = data.decode("utf-8", errors="ignore").strip()
             return text
 
         except Exception as e:
-            logger.error(f"Service banner grab failed on {host}:{port} due to {e}")
+            logger.error(f"Service banner grab failed on {self.host}:{port} due to {e}")
             return None
 
-    async def grab_banner_for_port(self, host: str, port: int) -> Optional[str]:
+    async def grab_banner_for_port(self, port: int) -> Optional[str]:
         if port == 22:
-            return await self.grab_ssh_banner(host, port)
+            return await self.grab_ssh_banner(port)
         if port in conf.ALL_HTTP_PORTS:
-            return await self.grab_http_banner_aiohttp(host, port)
-        return await self.grab_service_banner(host, port)
+            return await self.grab_http_banner_aiohttp(port)
+        return await self.grab_service_banner(port)
 
-    async def _get_banners(self, port_objs: list[Port], concur: int = conf.DEFAULT_CONCURRENCY_FOR_BANNER_GRAB) -> None:
+    async def _get_banners(
+        self,
+        port_objs: list[Port],
+        concur: int = conf.DEFAULT_CONCURRENCY_FOR_BANNER_GRAB,
+    ) -> None:
 
         open_ports = [p for p in port_objs if p.check()]
 
@@ -220,7 +216,7 @@ class Scan(ABC):
             if pobj.get_status() != "OPEN":
                 return pobj
             async with sem:
-                banner = await self.grab_banner_for_port(self.host, pobj.get_port())
+                banner = await self.grab_banner_for_port(pobj.get_port())
             if banner:
                 logger.info(
                     f"Retrieved banner for {self.host}:{pobj.get_port()}: {banner}"
@@ -237,7 +233,7 @@ class Scan(ABC):
 
 class TCPConnect(Scan):
 
-    async def _connect_one(self, port: int, timeout: float = 2) -> str:
+    async def _connect_one(self, port: int) -> str:
 
         logger_message = f"Attempting to connect to {self.host} on port {port}..."
         logger.info(logger_message)
@@ -247,10 +243,10 @@ class TCPConnect(Scan):
 
         try:
             conn = asyncio.open_connection(self.host, port)
-            _, writer = await asyncio.wait_for(conn, timeout=timeout)
+            _, writer = await asyncio.wait_for(conn, timeout=self.timeout)
             writer.close()
 
-            # ensure the writer is closed
+            # Ensure the writer is closed
             try:
                 await writer.wait_closed()
             except Exception as e:
@@ -264,7 +260,9 @@ class TCPConnect(Scan):
                 )
                 return "CLOSED"
             if getattr(e, "errno", None) in conf.ERRORNO_LIST:
-                logger.warning(f"Connection failed on due to network error {e.errno}")
+                logger.warning(
+                    f"Connection failed on {self.host}:{port} due to network error {e.errno}"
+                )
                 return "FILTERED"
             logger.error(
                 f"Connection to {self.host}:{port} failed due to packet drop or firewall"
@@ -277,21 +275,20 @@ class TCPConnect(Scan):
     async def _scan_batch_connect(
         self,
         port_list: list[Port],
-        ports: range,
-        timeout: float = conf.DEFAULT_TIMEOUT,
-        concur: int = conf.DEFAULT_CONCURRENCY_FOR_SCANS,
-        retry: int = 0,
+        concur: int = conf.DEFAULT_CONCURRENCY_FOR_SCANS
     ) -> None:
         host = self.host
         sem = asyncio.Semaphore(concur)
 
         logger_message = (
-            f"Starting TCP Connect scan on host {self.host} for ports in {ports} "
+            f"Starting TCP Connect scan on host {self.host} for ports in {self.ports} "
         )
 
         logger.info(logger_message)
-        if ports.stop > conf.THRESHOLD_FOR_SLOW_SCAN:
-            logger_message = f"Scanning more than {conf.THRESHOLD_FOR_SLOW_SCAN} ports may be slow."
+        if self.ports.stop > conf.THRESHOLD_FOR_SLOW_SCAN:
+            logger_message = (
+                f"Scanning more than {conf.THRESHOLD_FOR_SLOW_SCAN} ports may be slow."
+            )
             logger.warning(logger_message)
             print(logger_message)
 
@@ -299,10 +296,10 @@ class TCPConnect(Scan):
             print(logger_message)
 
         async def scan_port(port: int):
-            # retry loop (avoid recursion)
+            # Retry loop, avoiding recursion
             status = "FILTERED"
 
-            for attempt in range(retry + 1):
+            for attempt in range(self.retry + 1):
                 logger_message = (
                     f"Scanning port {port} on host {host}, attempt {attempt + 1}..."
                 )
@@ -323,7 +320,7 @@ class TCPConnect(Scan):
                     logger.info(
                         f"Waiting for connection slot for port {port} on host {host}..."
                     )
-                    status = await self._connect_one(port, timeout)
+                    status = await self._connect_one(port)
                 if status == "OPEN":
                     break
 
@@ -334,16 +331,20 @@ class TCPConnect(Scan):
 
             return tested
 
-        tasks = [asyncio.create_task(scan_port(p)) for p in ports]
+        tasks = [asyncio.create_task(scan_port(p)) for p in self.ports]
 
         logger.info(f"Waiting for scan tasks to complete for host {host}...")
-        # gather results as they complete (keeps memory steady-ish)
+
+        # Gather results as they complete
         for t in asyncio.as_completed(tasks):
             port_list.append(await t)
 
-    def scan_host(self, port_list, ports, timeout=conf.DEFAULT_TIMEOUT, retry=conf.DEFAULT_RETRY_COUNT) -> None:
+    def scan_host(
+        self,
+        port_list,
+    ) -> None:
 
-        asyncio.run(self._scan_batch_connect(port_list, ports, timeout, concur=conf.DEFAULT_CONCURRENCY_FOR_SCANS, retry=retry))
+        asyncio.run(self._scan_batch_connect(port_list))
 
         if self.banner:
             asyncio.run(self._get_banners(port_list))
@@ -351,14 +352,9 @@ class TCPConnect(Scan):
 
 class SYNScan(Scan):
 
-    def __init__(self, host: str):
-        super().__init__(host)
-
     def scan_batch(
         self,
-        port_list: list[Port],
-        ports: range,
-        timeout: int = conf.DEFAULT_TIMEOUT,
+        port_list: list[Port]
     ):
         logger_message = f"There are no retries when using SYN scan."
         logger.info(logger_message)
@@ -367,32 +363,30 @@ class SYNScan(Scan):
             print(logger_message)
 
         logger_message = (
-            f"Starting SYN scan batch on host {self.host} for ports in {ports}."
+            f"Starting SYN scan batch on host {self.host} for ports in {self.ports}."
         )
         logger.info(logger_message)
 
         if self.verbosity >= conf.MINIMUM_VERBOSITY:
             print(logger_message)
 
-        host = self.host
         base_sport = 40000
-        # map sport -> dport so we can correlate replies
-        sport_map = {
-            base_sport + i: p for i, p in enumerate(ports)
-        }  # our_sport -> scanned_port
 
-        logger.info(f"Preparing packets for SYN scan on host {host}...")
+        # Map source ports -> destination port so we can correlate replies
+        sport_map = {base_sport + i: p for i, p in enumerate(self.ports)}
+
+        logger.info(f"Preparing packets for SYN scan on host {self.host}...")
         pkts = [
-            IP(dst=host) / TCP(sport=our_sport, dport=scanned_port, flags="S", seq=1000)
+            IP(dst=self.host) / TCP(sport=our_sport, dport=scanned_port, flags="S", seq=1000)
             for our_sport, scanned_port in sport_map.items()
         ]
 
-        logger.info(f"Starting sniffer for SYN scan on host {host}...")
+        logger.info(f"Starting sniffer for SYN scan on host {self.host}...")
         sn = AsyncSniffer(
-            iface="eth0", filter=f"tcp or icmp and src host {host}", store=True
+            iface="eth0", filter=f"tcp or icmp and src host {self.host}", store=True
         )
 
-        logger_message = f"Sniffer started for SYN scan on host {host}."
+        logger_message = f"Sniffer started for SYN scan on host {self.host}."
         logger.info(logger_message)
 
         if self.verbosity >= conf.MEDIUM_VERBOSITY:
@@ -400,31 +394,31 @@ class SYNScan(Scan):
 
         sn.start()
 
-        # send all SYNs
-        logger_message = f"Sending SYN packets to {host}..."
+        # Send SYN packets
+        logger_message = f"Sending SYN packets to {self.host}..."
         logger.info(logger_message)
         if self.verbosity >= conf.MEDIUM_VERBOSITY:
             print(logger_message)
         send(pkts)
 
-        logger_message = f"SYN packets sent to {host}, waiting for replies..."
+        logger_message = f"SYN packets sent to {self.host}, waiting for replies..."
         logger.info(logger_message)
         if self.verbosity >= conf.MEDIUM_VERBOSITY:
             print(logger_message)
 
-        # Let replies arrive & capture them 
-        time.sleep(timeout)
+        # Let replies arrive & capture them
+        time.sleep(self.timeout)
         replies = sn.stop()
 
-        logger_message = f"Captured {len(replies)} replies from {host}."
+        logger_message = f"Captured {len(replies)} replies from {self.host}."
         logger.info(logger_message)
         if self.verbosity >= conf.MAX_VERBOSITY:
             print(logger_message)
 
-        status = {p: "FILTERED" for p in ports}
+        status = {p: "FILTERED" for p in self.ports}
         seen = set()
 
-        logger_message = f"Analyzing replies from {host}..."
+        logger_message = f"Analyzing replies from {self.host}..."
         logger.info(logger_message)
         if self.verbosity >= conf.MAX_VERBOSITY:
             print(logger_message)
@@ -449,7 +443,7 @@ class SYNScan(Scan):
                 status[scanned_port] = "FILTERED"
                 seen.add(scanned_port)
 
-        for p in ports:
+        for p in self.ports:
             tested_port = Port(self.host, p, status[p], status[p] == "OPEN")
             port_list.append(tested_port)
 
@@ -460,7 +454,7 @@ class SYNScan(Scan):
         seq = list(seq)
         for i in range(0, len(seq), size):
             yield seq[i : i + size]
-        
+
     def scan_host(self, port_list, ports, timeout=conf.DEFAULT_TIMEOUT) -> None:
         for chunk in self._chunks(ports, conf.SYN_SCAN_BATCH_SIZE):
             self.scan_batch(port_list, chunk, timeout)
