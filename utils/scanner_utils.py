@@ -15,19 +15,6 @@ from .models import Port
 def get_ip(host: str):
     return socket.gethostbyname(host)
 
-# Get mac Address of machine
-def get_mac():
-    return  get_if_hwaddr("eth0")
-
-# Get the gateway mac address
-def get_gateway_mac():
-    gw_ip = conf.route.route("8.8.8.8")[2]  # or use your target IP
-    ans, _ = arping(gw_ip, timeout=2, verbose=False)
-    for _, rcv in ans:
-        return rcv[Ether].src
-    return None
-
-
 # Ensure ip is reachable
 def check_ip(ip: str):
     output = os.popen(f"ping {ip} -c 4").read()
