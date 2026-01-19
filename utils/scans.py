@@ -1,17 +1,21 @@
-import socket
+
 import threading
 import time
 import asyncio
-from typing import Optional
-
 import aiohttp
-
-from utils.models import Port
-from abc import ABC, abstractmethod
 
 from scapy.all import AsyncSniffer, send, conf
 from scapy.layers.inet import ICMP, IP, TCP, TCPerror
 
+from utils.models import Port
+from abc import ABC, abstractmethod
+
+from typing import Optional
+
+import utils.constants as constants
+from utils.logger import setup_logger
+
+logger = setup_logger("scans_logger", "scanner.log")
 
 class Scan(ABC):
 
@@ -42,27 +46,6 @@ class Scan(ABC):
             else:
                 print(f"\nSUCCESS! Port {port} is open on {host}")
 
-    # Gets banner service on open port
-    def get_running_service(self, port_obj: Port):
-
-        port = port_obj.get_port()
-
-        try:
-            socket.setdefaulttimeout(2)
-            s = socket.socket()
-            s.connect((self.host, port))
-            banner = s.recv(1024).decode("utf-8").strip()
-        except Exception as e:
-            banner = f"Unable to get running service on port {port} due to {e.args}"
-        finally:
-            s.close()
-
-        return banner if banner else "No service to be found on open port"
-
-    def chunks(self, seq, size):
-        seq = list(seq)
-        for i in range(0, len(seq), size):
-            yield seq[i : i + size]
 
     @abstractmethod
     def scan_host(
@@ -70,7 +53,143 @@ class Scan(ABC):
     ):
         pass
 
+    async def grab_http_banner_aiohttp(self,
+        host: str,
+        port: int,
+        user_agent: Optional[str] = None,
+    ):
+        """
+        HTTP/HTTPS banner via aiohttp: returns status + key headers (Server, X-Powered-By).
+        Works for typical web ports; will NOT work for SSH, etc.
+        """
+        scheme = "http"
 
+        if port in constants.HTTPS_PORTS:
+            scheme = "https"
+        
+        url = f"{scheme}://{host}:{port}/"
+
+        headers = {}
+        if user_agent:
+            headers["User-Agent"] = user_agent
+
+        timeout_cfg = aiohttp.ClientTimeout(total=constants.DEFAULT_TIMEOUT)
+
+        try:
+            async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+                async with session.get(url, headers=headers, allow_redirects=True) as resp:
+                    server = resp.headers.get("Server")
+                    powered = resp.headers.get("X-Powered-By")
+
+                    # read a tiny bit so some servers actually respond
+                    _ = await resp.content.read(200)
+
+                    parts = [f"HTTP {resp.status}"]
+                    if server:
+                        parts.append(f"Server: {server}")
+                    if powered:
+                        parts.append(f"X-Powered-By: {powered}")
+                    return " | ".join(parts)
+
+        except (asyncio.TimeoutError, aiohttp.ClientError) as e:
+            print(f"HTTP banner grab failed on {host}:{port} due to {e} error")
+            return None
+
+
+    async def grab_ssh_banner(self,
+        host: str,
+        port: int = 22,
+    ) -> Optional[str]:
+        """
+        SSH banner via raw TCP. SSH servers usually speak first.
+        Returns line like: 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3'
+        """
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port),
+                timeout=constants.DEFAULT_TIMEOUT,
+            )
+            try:
+                line = await asyncio.wait_for(reader.readline(), timeout=constants.DEFAULT_TIMEOUT)
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception as e:
+                    print(f"Error while closing writer: {e}")
+
+            banner = line.decode("utf-8", errors="ignore").strip()
+            return banner or None
+
+        except Exception as e:
+            print(f"SSH banner grab failed on {host}:{port} due to {e}")
+            return None
+
+
+    async def grab_generic_banner(
+        host: str,
+        port: int,
+        timeout: float = 2.0,
+        read_bytes: int = 1024,
+    ) -> Optional[str]:
+        """
+        Best-effort generic banner grab:
+        - connects
+        - waits briefly for the server to send something (for 'speak-first' protocols)
+        Does NOT send protocol-specific handshakes.
+        """
+        try:
+            reader, writer = await asyncio.wait_for(
+                asyncio.open_connection(host, port),
+                timeout=timeout,
+            )
+            try:
+                data = await asyncio.wait_for(reader.read(read_bytes), timeout=timeout)
+            finally:
+                writer.close()
+                try:
+                    await writer.wait_closed()
+                except Exception:
+                    pass
+
+            if not data:
+                return None
+
+            text = data.decode("utf-8", errors="ignore").strip()
+            return text
+
+        except Exception as e:
+            print(f"Generic banner grab failed on {host}:{port} due to {e}")
+            return None
+
+    async def grab_banner_for_port(self, host: str, port: int, verbose: int) -> Optional[str]:
+        if port == 22:
+            if verbose == constants.MAX_VERBOSITY:
+                print(f"Grabbing SSH banner from {host}:{port}...")
+            return await self.grab_ssh_banner(host, port)
+        if port in (80, 443, 8080, 8443):
+            return await self.grab_http_banner_aiohttp(host, port, user_agent="MyScanner/1.0")
+        return await self.grab_generic_banner(host, port)
+
+    async def get_banners(self, port_objs, concur: int = 50, verbose: bool = False):
+        
+        open_ports = [p for p in port_objs if p.check()]
+
+        if verbose:
+            print(f"\nStarting banner grabbing for {len(open_ports)} open ports...")
+
+        sem = asyncio.Semaphore(concur)
+        async def one(pobj):
+            if pobj.get_status() != "OPEN":
+                return pobj
+            async with sem:
+                banner = await self.grab_banner_for_port(self.host, pobj.get_port())
+            if banner:
+                pobj.set_banner(banner)
+            if not banner:
+                pobj.set_banner("No banner retrieved")
+
+        return await asyncio.gather(*(one(p) for p in open_ports))
 class TCPConnect(Scan):
 
     async def _connect_one(self, port: int, timeout: float = 2) -> str:
@@ -140,148 +259,21 @@ class TCPConnect(Scan):
         for t in asyncio.as_completed(tasks):
             port_list.append(await t)
     
-
-
-    async def grab_http_banner_aiohttp(self,
-        host: str,
-        port: int,
-        timeout: float = 2.0,
-        user_agent = None,
-    ):
-        """
-        HTTP/HTTPS banner via aiohttp: returns status + key headers (Server, X-Powered-By).
-        Works for typical web ports; will NOT work for SSH, etc.
-        """
-        scheme = "https" if port == 443 else "http"
-        url = f"{scheme}://{host}:{port}/"
-
-        headers = {}
-        if user_agent:
-            headers["User-Agent"] = user_agent
-
-        timeout_cfg = aiohttp.ClientTimeout(total=timeout)
-
-        try:
-            async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
-                async with session.get(url, headers=headers, allow_redirects=True) as resp:
-                    server = resp.headers.get("Server")
-                    powered = resp.headers.get("X-Powered-By")
-
-                    # read a tiny bit so some servers actually respond (but keep it cheap)
-                    _ = await resp.content.read(200)
-
-                    parts = [f"HTTP {resp.status}"]
-                    if server:
-                        parts.append(f"Server: {server}")
-                    if powered:
-                        parts.append(f"X-Powered-By: {powered}")
-                    return " | ".join(parts)
-
-        except (asyncio.TimeoutError, aiohttp.ClientError):
-            return None
-
-
-    async def grab_ssh_banner(self,
-        host: str,
-        port: int = 22,
-        timeout: float = 2.0,
-    ) -> Optional[str]:
-        """
-        SSH banner via raw TCP. SSH servers usually speak first.
-        Returns line like: 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3'
-        """
-        try:
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port),
-                timeout=timeout,
-            )
-            try:
-                line = await asyncio.wait_for(reader.readline(), timeout=timeout)
-            finally:
-                writer.close()
-                try:
-                    await writer.wait_closed()
-                except Exception:
-                    pass
-            banner = line.decode("utf-8", errors="ignore").strip()
-            return banner or None
-
-        except Exception as e:
-            return None
-
-
-    async def grab_generic_banner(
-        host: str,
-        port: int,
-        timeout: float = 2.0,
-        read_bytes: int = 1024,
-    ) -> Optional[str]:
-        """
-        Best-effort generic banner grab:
-        - connects
-        - waits briefly for the server to send something (for 'speak-first' protocols)
-        Does NOT send protocol-specific handshakes.
-        """
-        try:
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(host, port),
-                timeout=timeout,
-            )
-            try:
-                data = await asyncio.wait_for(reader.read(read_bytes), timeout=timeout)
-            finally:
-                writer.close()
-                try:
-                    await writer.wait_closed()
-                except Exception:
-                    pass
-
-            if not data:
-                return None
-
-            # Keep printable-ish output
-            text = data.decode("utf-8", errors="ignore").strip()
-            return text or None
-
-        except Exception:
-            return None
-
-    async def grab_banner_for_port(self, host: str, port: int) -> Optional[str]:
-        if port == 22:
-            return await self.grab_ssh_banner(host, port)
-        if port in (80, 443):
-            return await self.grab_http_banner_aiohttp(host, port, user_agent="MyScanner/1.0")
-        return await self.grab_generic_banner(host, port)
-
-    async def banner_phase(self, port_objs, concur: int = 50):
-        sem = asyncio.Semaphore(concur)
-        async def one(pobj):
-            if pobj.get_status() != "OPEN":
-                return pobj
-            async with sem:
-                banner = await self.grab_banner_for_port(self.host, pobj.get_port())
-            if banner:
-                pobj.set_banner(banner)
-            return pobj
-
-        return await asyncio.gather(*(one(p) for p in port_objs))
-
     def scan_host(self, port_list, ports, timeout=1.5, retry=0, banner=False):
         asyncio.run(
             self._scan_batch_connect(
                 port_list, ports, timeout, concur=200, retry=retry, banner=banner
             )
         )
-        asyncio.run(self.banner_phase(port_list, concur=50))
+
+        if banner:
+            asyncio.run(self.get_banners(port_list, concur=50))
 
 
 class SYNScan(Scan):
 
     def __init__(self, host: str):
         super().__init__(host)
-
-    def scan_single(self, port_list, port, timeout, retry=0, verbose=False):
-        return None
 
     def scan_batch(
         self,
@@ -313,8 +305,8 @@ class SYNScan(Scan):
         # send all SYNs
         send(pkts, verbose=3)
 
-        time.sleep(timeout)  # let replies arrive
-        # capture TCP replies from target host to our sports
+        # Let replies arrive & catpure them
+        time.sleep(timeout)
         replies = sn.stop()
 
         print(f"Captured {len(replies)} replies")
@@ -346,8 +338,17 @@ class SYNScan(Scan):
             tested_port = Port(self.host, p, status[p], status[p] == "OPEN")
             port_list.append(tested_port)
 
+    def chunks(self, seq, size):
+        logger.info(f"Splitting port list of length {len(seq)} into chunks of size {size} for SYN scan.")
+        seq = list(seq)
+        for i in range(0, len(seq), size):
+            yield seq[i : i + size]
+
     def scan_host(
         self, port_list, ports, timeout=1.5, retry=0, banner=False, verbose=False
     ):
         for chunk in super().chunks(ports, 2000):
             self.scan_batch(port_list, chunk, timeout, retry, verbose)
+        
+        if banner:
+            asyncio.run(self.get_banners(port_list, concur=50))
