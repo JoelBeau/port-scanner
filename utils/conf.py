@@ -1,4 +1,7 @@
 from utils.logger import logger
+from scapy.all import conf
+
+conf.use_pcap = True
 
 MAX_VERBOSITY = 3
 MEDIUM_VERBOSITY = 2
@@ -17,4 +20,3 @@ SYN_SCAN_BATCH_SIZE = 2000
 LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 DEFAULT_READ_BYTES = 1024
-
