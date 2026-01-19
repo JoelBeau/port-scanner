@@ -1,6 +1,7 @@
 import argparse
 import sys
 import ipaddress as ipa
+import utils.conf as conf
 
 
 class Port:
@@ -83,24 +84,28 @@ class Arguements:
             "-p",
             "--port",
             type=self.parse_port_range,
-            default=range(1,1026),
+            default=conf.DEFAULT_PORT_RANGE,
             help="Specify the range of ports to scan (e.g., 1-1024 or 80)",
         )
         self.parser.add_argument(
             "-s",
             "--scan-type",
-            choices=["tcp", "syn"],
-            default="tcp",
+            choices=conf.SCAN_CHOICES,
+            default=conf.DEFAULT_PORT_SCAN_TYPE,
             help="Choose the type of scan to perform",
         )
         self.parser.add_argument(
-            "-v", "--verbose", action="store_true", help="Enable verbose output"
+            "-v",
+            "--verbosity",
+            choices=conf.VERBOSITY_LEVELS,
+            default=conf.DEFAULT_VERBOSE_LEVEL,
+            help="Enable verbose output",
         )
         self.parser.add_argument(
             "-o",
             "--output",
             type=self.parse_outputs,
-            default=("plain text", False),
+            default=conf.DEFAULT_OUTPUT_MEDIUM,
             help="Specify the output format or file",
         )
         self.parser.add_argument(
@@ -108,16 +113,27 @@ class Arguements:
             "--retry",
             type=int,
             help="Number of retries on failed connection attempts",
+            default=conf.DEFAULT_RETRY_COUNT,
+        )
+        self.parser.add_argument(
+            "-T",
+            "--timeout",
+            type=int,
+            default=conf.DEFAULT_TIMEOUT,
+            help="Specify the timeout duration for connection attempts",
         )
         self.parser.add_argument(
             "-n",
             "--no-resolve",
             action="store_true",
+            default=conf.DEFAULT_NO_RESOLVE,
             help="Disable reverse DNS resolution",
         )
         self.parser.add_argument(
             "-u",
             "--user-agent",
+            type=str,
+            default=conf.DEFAULT_USER_AGENT,
             help="Specify a custom user-agent string for HTTP-based scans",
         )
         self.parser.add_argument(
@@ -127,7 +143,11 @@ class Arguements:
             help="Exclude specific IPs or ports from the scan",
         )
         self.parser.add_argument(
-            "-b", "--banner", action="store_true", help="Enable service banner grabbing"
+            "-b",
+            "--banner",
+            action="store_true",
+            default=conf.DEFAULT_BANNER_GRAB,
+            help="Enable service banner grabbing",
         )
 
         args = self.parser.parse_args()
@@ -139,7 +159,7 @@ class Arguements:
         formats = ["json", "csv", "plain text"]
 
         # If outputting to a file
-        if '.' in output:
+        if "." in output:
             return (output, True)
 
         # If just outputting to the terminal
@@ -175,7 +195,22 @@ class Arguements:
             raise argparse.ArgumentTypeError(f"Invalid IP exclusion {e.args[0]}")
 
     def parse_ips(self, ips: str):
-        if "-" not in ips:
+        # Check if it's CIDR notation
+        if "/" in ips:
+            try:
+                network = ipa.IPv4Network(ips, strict=False)
+            except ipa.NetmaskValueError as e:
+                raise argparse.ArgumentTypeError(f"Invalid CIDR notation, {e.args[0]}")
+            return list(network)
+        # Not in CIDR notation
+        elif "-" not in ips:
+            try:
+                ip = ipa.IPv4Address(ips)
+            except ipa.AddressValueError as e:
+                raise argparse.ArgumentTypeError(f"Invalid IP address, {e.args[0]}")
+            return ips
+        # Possible hostname
+        elif type(ips) is str:
             return ips
         else:
             try:
