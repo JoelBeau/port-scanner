@@ -8,36 +8,14 @@ import asyncio
 import time
 
 from utils.models import Port, Arguements
-from utils.scanner_utils import output
+from utils.scanner_utils import scan_multiple_hosts, scan_one_host
 from utils.scans import Scan, TCPConnect, SYNScan
-
-from concurrent.futures import ThreadPoolExecutor
 
 
 # # Initialize arguments class and get the cli arguements
 flags = Arguements().args
 
-ips = flags["target"]
-ports = flags["port"]
-stype = flags["scan_type"]
-verbose = flags["verbose"]
-out = flags["output"]
-retry = flags["retry"]
-agent = flags["user_agent"]
-exclusions = flags["exclude"]
-banner = flags["banner"]
-
 print(flags)
-
-if isinstance(ips, range):
-
-    for ip in ips:
-        ip = str(ipa.IPv4Address(ip))
-        if exclusions:
-            if ip not in exclusions:
-                print(ip)
-        else:
-            print(ip)
 
 port_list: list[Port] = []
 
@@ -46,23 +24,20 @@ scanning_threads: list[threading.Thread] = []
 cse3320_ip = socket.gethostbyname("cse3320.org")
 cse4380_ip = socket.gethostbyname("cse4380.org")
 
-tcp_scan = TCPConnect(cse3320_ip, 2, True)
-syn_scan = SYNScan(cse3320_ip)
+# tcp_scan = TCPConnect(cse3320_ip)
+syn_scan = SYNScan(cse3320_ip, **flags)
 
-ports = range(1, 15000)
+flags["port"] = range(1, 80)
+flags["banner"] = True
+flags['scan_type'] = 'syn'
 
-s = time.time()
+# s = time.time()
 
-# for ip in [cse3320_ip, cse4380_ip]:
-#     syn_scan = SYNScan(ip)
-    
-#     t = threading.Thread(target=syn_scan.scan_host, args=(port_list, ports, 1.5, retry, banner, verbose))
-#     scanning_threads.append(t)
-#     t.start()
+print(flags['exclude'])
 
-# for t in scanning_threads:
-#     t.join()
-# syn_scan.scan_host(port_list, ports)
+scan_one_host(**flags)
+
+# syn_scan.scan_host(port_list)
 
 
 # # Sort and print the results
