@@ -1,4 +1,5 @@
 import argparse
+import socket
 import sys
 import ipaddress as ipa
 import utils.conf as conf
@@ -7,52 +8,52 @@ import utils.conf as conf
 class Port:
 
     def __init__(self, host, port, status, is_open=False):
-        self.__host = host
-        self.__port = port
-        self.__status = status
-        self.__is_open = is_open
-        self.__banner = None
+        self._host = host
+        self._port = port
+        self._status = status
+        self._is_open = is_open
+        self._service_banner = None
 
     def check(self):
-        return self.__is_open
+        return self._is_open
 
     def get_port(self):
-        return self.__port
+        return self._port
 
     def get_host(self):
-        return self.__host
+        return self._host
 
     def get_status(self):
-        return self.__status
+        return self._status
 
-    def get_banner(self):
-        return self.__banner
+    def get_service_banner(self):
+        return self._service_banner
 
-    def set_banner(self, banner):
-        self.__banner = banner
+    def set_service_banner(self, banner):
+        self._service_banner = banner
 
     def __iter__(self):
         return iter(
             [
-                self.__host,
-                self.__port,
-                self.__status,
-                self.__is_open,
-                self.__banner if self.__banner else "N/A",
+                self._host,
+                self._port,
+                self._status,
+                self._is_open,
+                self._service_banner if self._service_banner else "N/A",
             ]
         )
 
     def to_dict(self):
         return {
-            "host": self.__host,
-            "port": self.__port,
-            "status": self.__status,
-            "is_open": self.__is_open,
-            "banner": self.__banner if self.__banner else "N/A",
+            "host": self._host,
+            "port": self._port,
+            "status": self._status,
+            "is_open": self._is_open,
+            "service_banner": self._service_banner if self._service_banner else "N/A",
         }
 
     def __str__(self):
-        return f"{self.__host}:{self.__port} status: {self.__status} "
+        return f"{self._host}:{self._port} status: {self._status} "
 
 
 class ArgParser(argparse.ArgumentParser):
@@ -123,13 +124,6 @@ class Arguements:
             help="Specify the timeout duration for connection attempts",
         )
         self.parser.add_argument(
-            "-n",
-            "--no-resolve",
-            action="store_true",
-            default=conf.DEFAULT_NO_RESOLVE,
-            help="Disable reverse DNS resolution",
-        )
-        self.parser.add_argument(
             "-u",
             "--user-agent",
             type=str,
@@ -146,7 +140,7 @@ class Arguements:
             "-b",
             "--banner",
             action="store_true",
-            default=conf.DEFAULT_BANNER_GRAB,
+            default=conf.DEFAULT_SERVICE_BANNER_GRAB,
             help="Enable service banner grabbing",
         )
 
@@ -156,26 +150,26 @@ class Arguements:
 
     def parse_outputs(self, output):
 
-        formats = ["json", "csv", "plain text"]
+        formats = ["json", "csv", "txt", "text"]
 
         # If outputting to a file
         if "." in output:
-            return (output, True)
+            return (output, conf.OUTPUT_TO_FILE)
 
         # If just outputting to the terminal
         if output in formats:
-            return (output, False)
-
-        raise argparse.ArgumentTypeError(f"Invalid output format or filename: {output}")
+            return (output, conf.OUTPUT_TO_CONSOLE)
+        
+        raise argparse.ArgumentTypeError(conf.INVALID_OUTPUT_FORMAT_ERROR_MSG)
 
     def parse_exclusions(self, value: str):
         if "," not in value:
-            return self.validate_exclusions(value)
+            return list(self.validate_exclusions(value.strip()))
         else:
             exclusions = value.split(",")
             modified_exclusions = []
             for e in exclusions:
-                modified_exclusions.append(self.validate_exclusions(e))
+                modified_exclusions.append(self.validate_exclusions(e.strip()))
             return modified_exclusions
 
     def validate_exclusions(self, value: str):
@@ -184,15 +178,15 @@ class Arguements:
                 ip = ipa.IPv4Address(value)
                 return int(ip)
             else:
-                e = int(value)
-                if e > 65535 or e == 0:
+                p = int(value)
+                if p > conf.MAXIMUM_PORT or p == conf.PORT_NOT_ALLOWED:
                     raise ValueError
                 else:
-                    return e
-        except ValueError:
-            raise argparse.ArgumentTypeError(f"Invalid port exclusion")
+                    return p
+        except ValueError as e:
+            raise argparse.ArgumentTypeError(f"{conf.INVALID_PORT_EXCLUSION_ERROR_MSG}: {e} ")
         except ipa.AddressValueError as e:
-            raise argparse.ArgumentTypeError(f"Invalid IP exclusion {e.args[0]}")
+            raise argparse.ArgumentTypeError(f"{conf.INVALID_IP_EXCLUSION_ERROR_MSG}: {e} ")
 
     def parse_ips(self, ips: str):
         # Check if it's CIDR notation
@@ -200,17 +194,18 @@ class Arguements:
             try:
                 network = ipa.IPv4Network(ips, strict=False)
             except ipa.NetmaskValueError as e:
-                raise argparse.ArgumentTypeError(f"Invalid CIDR notation, {e.args[0]}")
+                raise argparse.ArgumentTypeError(f"{conf.INVALID_CIDR_ERROR_MSG}: {e}")
             return list(network)
         # Not in CIDR notation
         elif "-" not in ips:
             try:
                 ip = ipa.IPv4Address(ips)
             except ipa.AddressValueError as e:
-                raise argparse.ArgumentTypeError(f"Invalid IP address, {e.args[0]}")
-            return ips
-        # Possible hostname
-        elif type(ips) is str:
+                try:
+                    resolved_ip = ipa.IPv4Address(socket.gethostbyname(ips))
+                    return resolved_ip
+                except socket.gaierror as e:
+                    raise argparse.ArgumentTypeError(f"{conf.INVALID_IP_ERROR_MSG}: {e}")
             return ips
         else:
             try:
@@ -222,27 +217,25 @@ class Arguements:
                     ip = ipa.IPv4Address(ip)
                 return range(start, end)
             except ipa.AddressValueError as e:
-                raise argparse.ArgumentTypeError(
-                    f"Invalid IP address range, {e.args[0]}"
-                )
+                raise argparse.ArgumentTypeError(f"{conf.INVALID_IP_RANGE_ERROR_MSG}: {e}")
 
     def parse_port_range(self, ports: str):
         delim = "," if "," in ports else "-" if "-" in ports else None
         try:
             if not delim:
                 port = int(ports)
-                if port < 1 or port > 65535:
+                if port < conf.MINIMUM_PORT or port > conf.MAXIMUM_PORT:
                     raise ValueError
                 return port
             else:
                 start, end = map(int, ports.split(delim))
                 print(start, end)
-                if start > end or start == 0 or end > 65535:
+                if start > end or start == conf.PORT_NOT_ALLOWED or end > conf.MAXIMUM_PORT:
                     raise ValueError
                 return range(start, end + 1)
 
-        except ValueError as e:
+        except ValueError as ve:
             if not delim:
-                raise argparse.ArgumentTypeError(f"Invalid port range'{start} - {end}'")
+                raise argparse.ArgumentTypeError(f"{conf.INVALID_PORT_MSG}: {ve}")
             else:
-                raise argparse.ArgumentTypeError(f"Invalid port: '{ports}'")
+                raise argparse.ArgumentTypeError(f"{conf.INVALID_PORT_RANGE_ERROR_MSG}: {ve}")
