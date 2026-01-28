@@ -40,7 +40,7 @@ Banner grabbing is implemented as a separate stage that executes only after a po
 - Works without elevated privileges
 
 ### SYN Scan (Optional)
-- Sends crafted SYN packets to infer port state
+- Sends crafted SYN packets using 'Scapy' to infer port state
 - Lower overhead than full connections
 - Requires elevated privileges and packet-crafting support
 - Intended for controlled or lab environments
