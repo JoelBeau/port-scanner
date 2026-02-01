@@ -3,7 +3,7 @@ from argparse import ArgumentTypeError
 class PortScannerError(Exception):
     """Base exception for port scanner"""
     def __init__(self, message=None):
-        self.message = message or "Port scanner error occurred"
+        self.message = message or "portscanner: "
         super().__init__(self.message)
 
 # Arguemnt type errors
@@ -55,4 +55,10 @@ class InvalidOutputFormatError(PortScannerError, ArgumentTypeError):
     """Invalid output format"""
     def __init__(self, format, message=None):
         message = f"invalid output format specified: {format}"
+        super().__init__(message)
+
+class RequiresSudoError(PortScannerError):
+    """Operation requires sudo privileges"""
+    def __init__(self, message=None):
+        message = "port scanner: You don't have privileges to run port scanner on this device."
         super().__init__(message)
