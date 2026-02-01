@@ -152,14 +152,12 @@ class Arguments:
 
     def parse_outputs(self, output):
 
-        formats = ["json", "csv", "txt", "text"]
-
         # If outputting to a file
         if "." in output:
             return (output, conf.OUTPUT_TO_FILE)
 
         # If just outputting to the terminal
-        if output in formats:
+        if output in conf.FORMAT_TYPES:
             return (output, conf.OUTPUT_TO_CONSOLE)
         
         raise errors.InvalidOutputFormatError(output)
