@@ -3,7 +3,7 @@ import socket
 import sys
 import utils.errors as errors
 import ipaddress as ipa
-import utils.conf as conf
+import config as conf
 
 
 class ArgParser(argparse.ArgumentParser):
