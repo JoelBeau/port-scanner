@@ -3,9 +3,8 @@ import io
 import csv
 import json
 
-import config as conf
-
-from models.port import Port
+from port_scanner import config as conf
+from port_scanner.models.port import Port
 from tabulate import tabulate
 
 def display_results(results, output_flag):

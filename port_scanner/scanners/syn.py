@@ -1,9 +1,9 @@
 import time
 
-import config as config
-from models.port import Port
-from log import logger
-from base import Scan
+from port_scanner import config
+from port_scanner.models.port import Port
+from port_scanner.log import logger
+from .base import Scan
 
 from scapy.all import AsyncSniffer, send
 from scapy.layers.inet import ICMP, IP, TCP

@@ -1,10 +1,10 @@
 import asyncio
 import time
 
-from log import logger
-from models.arguments import Arguments
-from core.scanner import scan
-from core.output import display_results
+from port_scanner.log import logger
+from port_scanner.models.arguments import Arguments
+from port_scanner.core.scanner import scan
+from port_scanner.core.output import display_results
 
 
 def main():

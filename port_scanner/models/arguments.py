@@ -1,8 +1,8 @@
 import argparse
 import sys
 
-import config as conf
-from utils import validation
+import port_scanner.config as conf
+from ..utils import validation
 
 
 class ArgParser(argparse.ArgumentParser):

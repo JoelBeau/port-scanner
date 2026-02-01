@@ -1,11 +1,10 @@
 import asyncio
 
-from scanners.base import Scan
-from models.port import Port
-from utils import network
-
-import log as logger
-import config as conf
+from port_scanner.scanners import SCANNER_CLASSES
+from port_scanner.models.port import Port
+from port_scanner.utils import network
+from port_scanner import config as conf
+from port_scanner.log import logger
 
 
 async def scan(**flags):
@@ -31,7 +30,7 @@ async def scan(**flags):
 
         async with sem:
             scan_type = flags["scan_type"]
-            pscanner: Scan = conf.SCANNER_CLASSES[scan_type](str(host), **flags)
+            pscanner = SCANNER_CLASSES[scan_type](str(host), **flags)
             port_list: list[Port] = []
             await pscanner.scan_host(port_list)
             return (pscanner, port_list)

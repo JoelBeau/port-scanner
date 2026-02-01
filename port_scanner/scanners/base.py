@@ -3,12 +3,12 @@ import aiohttp
 
 from scapy.all import conf as scapy_conf
 
-from models.port import Port
+from port_scanner.models.port import Port
 from abc import ABC, abstractmethod
 
 from typing import Optional
-from log import logger
-import config as config
+from port_scanner.log import logger
+import port_scanner.config as conf
 
 class Scan(ABC):
 
@@ -41,12 +41,12 @@ class Scan(ABC):
         status = port_obj.get_status()
         port = port_obj.get_port()
 
-        if status == config.FILTERED_PORT:
+        if status == conf.FILTERED_PORT:
             print(
                 f"FAILURE, port {port} on host {host} "
                 "is being blocked by the host's firewall!"
             )
-        elif status == config.CLOSED_PORT:
+        elif status == conf.CLOSED_PORT:
             print(
                 f"FAILURE, port {port} on host {host} "
                 "is specifically closed from external connections!\n"
@@ -66,12 +66,12 @@ class Scan(ABC):
         logger_message = f"Grabbing HTTP banner from {self._host}:{port}..."
         logger.info(logger_message)
 
-        if self._verbosity == config.MAX_VERBOSITY:
+        if self._verbosity == conf.MAX_VERBOSITY:
             print(logger_message)
 
         scheme = "http"
 
-        if port in config.HTTPS_PORTS:
+        if port in conf.HTTPS_PORTS:
             scheme = "https"
 
         logger.warning(f"Using scheme {scheme} for banner grabbing on port {port}.")
@@ -82,7 +82,7 @@ class Scan(ABC):
         if self._user_agent:
             headers["User-Agent"] = self._user_agent
 
-        timeout_cfg = aiohttp.ClientTimeout(total=config.DEFAULT_TIMEOUT)
+        timeout_cfg = aiohttp.ClientTimeout(total=conf.DEFAULT_TIMEOUT)
 
         try:
             async with aiohttp.ClientSession(timeout=timeout_cfg, connector=aiohttp.TCPConnector(ssl=False)) as session:
@@ -122,18 +122,18 @@ class Scan(ABC):
         logger_message = f"Grabbing SSH banner from {self._host}:{port}..."
         logger.info(logger_message)
 
-        if self._verbosity == config.MAX_VERBOSITY:
+        if self._verbosity == conf.MAX_VERBOSITY:
             print(logger_message)
 
         try:
             logger.info(f"Connecting to {self._host}:{port} for SSH banner grab...")
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(self._host, port),
-                timeout=config.DEFAULT_TIMEOUT,
+                timeout=conf.DEFAULT_TIMEOUT,
             )
             try:
                 line = await asyncio.wait_for(
-                    reader.readline(), timeout=config.DEFAULT_TIMEOUT
+                    reader.readline(), timeout=conf.DEFAULT_TIMEOUT
                 )
             finally:
                 writer.close()
@@ -157,7 +157,7 @@ class Scan(ABC):
         - waits briefly for the server to send something (for 'speak-first' protocols)
         """
 
-        if self._verbosity == config.MAX_VERBOSITY:
+        if self._verbosity == conf.MAX_VERBOSITY:
             print(f"Grabbing running service banner from {self._host}:{port}...")
 
         logger.info(f"Grabbing running service banner from {self._host}:{port}...")
@@ -170,10 +170,10 @@ class Scan(ABC):
             )
             try:
                 logger.info(
-                    f"Waiting to read up to {config.DEFAULT_READ_BYTES} bytes from {self._host}:{port}..."
+                    f"Waiting to read up to {conf.DEFAULT_READ_BYTES} bytes from {self._host}:{port}..."
                 )
                 data = await asyncio.wait_for(
-                    reader.read(config.DEFAULT_READ_BYTES), timeout=self._timeout
+                    reader.read(conf.DEFAULT_READ_BYTES), timeout=self._timeout
                 )
             finally:
                 writer.close()
@@ -195,21 +195,21 @@ class Scan(ABC):
             return None
 
     async def grab_banner_for_port(self, port: int) -> Optional[str]:
-        if port == config.SSH_PORT:
+        if port == conf.SSH_PORT:
             return await self.grab_ssh_banner(port)
-        if port in config.ALL_HTTP_PORTS:
+        if port in conf.ALL_HTTP_PORTS:
             return await self.grab_http_banner_aiohttp(port)
         return await self.grab_service_banner(port)
 
     async def _get_banners(
         self,
         port_objs: list[Port],
-        concur: int = config.DEFAULT_CONCURRENCY_FOR_BANNER_GRAB,
+        concur: int = conf.DEFAULT_CONCURRENCY_FOR_BANNER_GRAB,
     ) -> None:
 
         open_ports = [p for p in port_objs if p.check()]
 
-        if self._verbosity >= config.MEDIUM_VERBOSITY:
+        if self._verbosity >= conf.MEDIUM_VERBOSITY:
             print(f"\nStarting banner grabbing for {len(open_ports)} open ports...")
 
         logger.info(
@@ -220,7 +220,7 @@ class Scan(ABC):
         sem = asyncio.Semaphore(concur)
 
         async def one(pobj: Port) -> Port:
-            if pobj.get_status() != config.OPEN_PORT:
+            if pobj.get_status() != conf.OPEN_PORT:
                 return pobj
             async with sem:
                 banner = await self.grab_banner_for_port(pobj.get_port())

@@ -1,8 +1,8 @@
 import ipaddress as ipa
 import socket
 
-import config as conf
-import errors
+from port_scanner import config as conf
+from port_scanner import errors
 
 
 def parse_outputs(self, output):
