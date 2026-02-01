@@ -12,6 +12,7 @@ from typing import Optional
 from utils.conf import logger
 import utils.conf as conf
 
+_SCANNER_REGSITRY = {}
 
 class Scan(ABC):
 
@@ -32,7 +33,7 @@ class Scan(ABC):
 
     def get_host(self) -> str:
         return self._host
-
+    
     def _remove_excluded_ports(self) -> None:
         if not self._exclude:
             return
@@ -58,7 +59,7 @@ class Scan(ABC):
             print(f"\nSUCCESS! Port {port} is open on {host}")
 
     @abstractmethod
-    def scan_host(self, port_list: list[Port]) -> None:
+    async def scan_host(self, port_list: list[Port]) -> None:
         pass
 
     async def grab_http_banner_aiohttp(self, port: int):
@@ -88,7 +89,7 @@ class Scan(ABC):
         timeout_cfg = aiohttp.ClientTimeout(total=conf.DEFAULT_TIMEOUT)
 
         try:
-            async with aiohttp.ClientSession(timeout=timeout_cfg) as session:
+            async with aiohttp.ClientSession(timeout=timeout_cfg, connector=aiohttp.TCPConnector(ssl=False)) as session:
 
                 logger.info(f"Sending {scheme.upper()} request to {url}...")
 
@@ -307,7 +308,7 @@ class TCPConnect(Scan):
             # Retry loop, avoiding recursion
             status = conf.FILTERED_PORT
 
-            for attempt in range(self.retry + 1):
+            for attempt in range(self._retry + 1):
                 logger_message = (
                     f"Scanning port {port} on host {host}, attempt {attempt + 1}..."
                 )
@@ -347,20 +348,48 @@ class TCPConnect(Scan):
         for t in asyncio.as_completed(tasks):
             port_list.append(await t)
 
-    def scan_host(
+    async def scan_host(
         self,
         port_list,
     ) -> None:
 
-        asyncio.run(self._scan_batch_connect(port_list))
+        await self._scan_batch_connect(port_list)
 
         if self._banner:
-            asyncio.run(self._get_banners(port_list))
+            await self._get_banners(port_list)
 
 
 class SYNScan(Scan):
 
     def scan_batch(self, port_list: list[Port], range_of_ports: range):
+        """
+        Performs a SYN scan batch on a range of ports for a target host.
+        
+        This method conducts a TCP SYN scan (half-open scan) on multiple ports simultaneously
+        by sending SYN packets and analyzing responses to determine port status. No retries
+        are performed during SYN scanning.
+        
+        The method:
+        1. Prepares SYN packets with sequential source ports mapped to destination ports
+        2. Starts an async packet sniffer to capture replies
+        3. Sends all SYN packets to the target host
+        4. Waits for responses and captures them
+        5. Analyzes TCP and ICMP replies to classify each port status
+        6. Populates the port_list with Port objects containing scan results
+        
+        Port classifications are determined by TCP flags:
+        - 0x12 (SYN-ACK): Port is OPEN
+        - 0x04 (RST): Port is CLOSED
+        - ICMP type 3 (Destination Unreachable): Port is FILTERED
+        - No response: Port is FILTERED
+        
+        Args:
+            port_list (list[Port]): List to append Port objects with scan results to
+            range_of_ports (range): Range of port numbers to scan
+        
+        Returns:
+            None (modifies port_list in place)
+        """
         logger_message = f"There are no retries when using SYN scan."
         logger.info(logger_message)
 
@@ -439,9 +468,10 @@ class SYNScan(Scan):
                 if scanned_port in seen:
                     continue
                 flags = tcp.flags
-                if flags & 0x12 == 0x12:
+                logger.info(f"TCP flags for port {scanned_port}: {flags}")
+                if flags & conf.SYN_ACK_FLAG == conf.SYN_ACK_FLAG:
                     status[scanned_port] = conf.OPEN_PORT
-                elif flags & 0x04:
+                elif flags & conf.RESET_FLAG:
                     status[scanned_port] = conf.CLOSED_PORT
                 seen.add(scanned_port)
             elif pkt.haslayer(ICMP) and pkt[ICMP].type == 3:
@@ -463,9 +493,16 @@ class SYNScan(Scan):
         for i in range(0, len(seq), size):
             yield seq[i : i + size]
 
-    def scan_host(self, port_list) -> None:
+    async def scan_host(self, port_list) -> None:
         for chunk in self._chunks(self._ports, conf.SYN_SCAN_BATCH_SIZE):
             self.scan_batch(port_list, chunk)
 
         if self._banner:
-            asyncio.run(self._get_banners(port_list))
+            await self._get_banners(port_list)
+
+
+# Populate the scanner registry
+conf.SCANNER_CLASSES = {
+    conf.TCP_SCAN: TCPConnect,
+    conf.SYN_SCAN: SYNScan,
+}
