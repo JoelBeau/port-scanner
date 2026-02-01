@@ -1,91 +1,79 @@
-import socket
 import os
 import io
 import csv
 import json
 
 import ipaddress as ipa
-import threading
+
+from dns.resolver import Answer
 
 from tabulate import tabulate
 from .models import Port
 from utils.conf import logger
 from utils import conf
-from utils.scans import TCPConnect, SYNScan
+from utils.scans import Scan
+
+import asyncio
+
 
 # Ensure ip is reachable
 def is_reachable(ip: str):
     output = os.popen(f"ping {ip} -c 4").read()
     return False if "0 received" in output else True
 
+''' Normalize target into a list of IPs '''
+def normalize_target(target):
+    if isinstance(target, ipa.IPv4Network):
+        return target.hosts()
+    elif isinstance(target, range):
+        return [ipa.IPv4Address(ip) for ip in target]
+    return [target]
 
 def is_excluded(ip: str, exclusions: list[str]):
     if not exclusions:
         return False
     return ip in exclusions
 
-def scan_one_host(**flags):
-
-    host = flags["target"]
-    port_list: list[Port] = []
-
-    if type(host) is not ipa.IPv4Network:
-        host = ipa.IPv4Address(host)
-    if not is_reachable(host):
-        logger.error(f"Host {host} is not reachable, exitting...")
-        return
-    if is_excluded(host, flags["exclude"]):
-        logger_message = f"Host {host} is in exclusions, skipping..."
-        if flags["verbosity"] >= conf.MINIMUM_VERBOSITY:
-            print(logger_message)
-        logger.warning(logger_message)
-        return
-
-    scan_type = flags["scan_type"]
-    if scan_type == "tcp":
-        pscanner = TCPConnect(str(host), **flags)
-    else:
-        pscanner = SYNScan(str(host), **flags)
-
-    pscanner.scan_host(port_list)
-    output_results(port_list, pscanner.get_host(), flags["output"])
-
-def scan_multiple_hosts(**flags):
-    hosts = flags["target"]
-    scan_type = flags["scan_type"]
-    exclusions = flags["exclude"]
+async def scan(**flags):
+    target = normalize_target(flags["target"])
     verbosity = flags["verbosity"]
-    output = flags["output"]
 
-    scanning_threads: list[threading.Thread] = []
+    sem = asyncio.Semaphore(conf.MAX_THREADS)
 
-    for host in hosts:
-        port_list: list[Port] = []
-
-        if type(hosts) is not ipa.IPv4Network:
-            host = ipa.IPv4Address(host)
+    async def scan_single_host(host):
         if not is_reachable(host):
-            logger.error(f"Host {host} is not reachable, skipping...")
-            continue
-        if is_excluded(host, exclusions):
-            logger_message = f"Host {host} is in exclusions, skipping..."
+            logger_message = f"host {host} is not reachable, skipping..."
+            if verbosity >= conf.MINIMUM_VERBOSITY:
+                print(logger_message)
+            logger.error(logger_message)
+            return None
+
+        if is_excluded(host, flags['exclude']):
+            logger_message = f"host {host} is in exclusions, skipping..."
             if verbosity >= conf.MINIMUM_VERBOSITY:
                 print(logger_message)
             logger.warning(logger_message)
+            return None
+
+        async with sem:
+            scan_type = flags["scan_type"]
+            pscanner: Scan = conf.SCANNER_CLASSES[scan_type](str(host), **flags)
+            port_list: list[Port] = []
+            await pscanner.scan_host(port_list)
+            return (pscanner, port_list)
+
+    # Create tasks for all hosts
+    tasks = [asyncio.create_task(scan_single_host(host)) for host in target]
+
+    # Gather all results
+    results = await asyncio.gather(*tasks)
+
+    # Process and output results
+    for result in results:
+        if result is None:
             continue
-
-        if scan_type == "tcp":
-            pscanner = TCPConnect(str(host), **flags)
-        else:
-            pscanner = SYNScan(str(host), **flags)
-
-        t = threading.Thread(target=pscanner.scan_host, args=(port_list,))
-        scanning_threads.append((t, port_list, pscanner))
-        t.start()
-
-    for t, port_list, pscanner in scanning_threads:
-        t.join()
-        output_results(port_list, pscanner.get_host(), output)
+        pscanner, port_list = result
+        output_results(port_list, pscanner.get_host(), flags['output'])
 
 def output_results(port_list: list[Port], host_ip: str, medium: tuple):
     port_list.sort(key=lambda x: x.get_port())
@@ -100,7 +88,9 @@ def output_results(port_list: list[Port], host_ip: str, medium: tuple):
 
     # Determine the format keyword (txt/csv/json)
     fmt = (
-        os.path.splitext(format_type)[1].lstrip(".").lower() if is_file else format_type.lower()
+        os.path.splitext(format_type)[1].lstrip(".").lower()
+        if is_file
+        else format_type.lower()
     )
 
     if fmt in ("text", "txt"):
