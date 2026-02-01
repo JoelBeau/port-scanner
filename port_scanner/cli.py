@@ -1,9 +1,10 @@
 import asyncio
 import time
 
-from port_scanner.utils.logger import logger
-from port_scanner.utils.models import Arguments
-from port_scanner.utils.scanner_utils import scan
+from log import logger
+from models.arguments import Arguments
+from core.scanner import scan
+from core.output import display_results
 
 
 def main():
@@ -14,7 +15,9 @@ def main():
     logger.info("Starting port scanner...")
     start = time.time()
     
-    asyncio.run(scan(**flags))
+    results = asyncio.run(scan(**flags))
+
+    display_results(results, flags['output'])
     
     end = time.time()
 
