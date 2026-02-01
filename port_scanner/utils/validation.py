@@ -47,43 +47,48 @@ def validate_exclusions(value: str):
 
 
 def parse_ips(ips: str):
-    # Check if it's CIDR notation
-    try:
-        resolved_ip = ipa.IPv4Address(socket.gethostbyname(ips))
-        return resolved_ip
-    except socket.gaierror:
-        if "/" in ips:
-            try:
-                network = ipa.IPv4Network(ips, strict=False)
-            except ipa.NetmaskValueError:
-                raise errors.InvalidCIDRError(ips)
+    """
+    Accepts only:
+    1) Single IPv4 address
+    2) CIDR block
+    3) Hostname (resolves to IPv4)
+    4) IP range 
+    """
+    ips = ips.strip()
+
+    # CIDR block
+    if "/" in ips:
+        try:
+            network = ipa.IPv4Network(ips, strict=False)
             return list(network)
-        # Not in CIDR notation
-        elif "-" not in ips:
-            try:
-                int(ips)
-                raise errors.InvalidIPError(ips)
-            except ValueError:
-                try:
-                    ip = ipa.IPv4Address(ips)
-                except ipa.AddressValueError:
-                    try:
-                        resolved_ip = ipa.IPv4Address(socket.gethostbyname(ips))
-                        return resolved_ip
-                    except socket.gaierror:
-                        raise errors.InvalidIPError(ips)
-            return ips
-        else:
-            try:
-                ips = ips.split("-")
-                start = int(ipa.IPv4Address(ips[0]))
-                end = int(ipa.IPv4Address(ips[1]))
-                # Make sure each address is a valid address
-                for ip in range(start, end):
-                    ip = ipa.IPv4Address(ip)
-                return range(start, end)
-            except ipa.AddressValueError:
-                raise errors.InvalidIPRangeError(ips)
+        except ipa.NetmaskValueError:
+            raise errors.InvalidCIDRError(ips)
+
+    # IP range (e.g., 192.168.1.1-192.168.1.10)
+    if "-" in ips:
+        try:
+            ips_split = ips.split("-")
+            start = int(ipa.IPv4Address(ips_split[0]))
+            end = int(ipa.IPv4Address(ips_split[1]))
+            # Validate each address in range
+            for ip in range(start, end + 1):
+                ip = ipa.IPv4Address(ip)
+            return range(start, end + 1)
+        except (ipa.AddressValueError, IndexError):
+            raise errors.InvalidIPRangeError(ips)
+
+    # Single IPv4 address
+    try:
+        return ipa.IPv4Address(ips)
+    except ipa.AddressValueError:
+        pass
+
+    # Hostname
+    try:
+        resolved_ip = socket.gethostbyname(ips)
+        return ipa.IPv4Address(resolved_ip)
+    except (socket.gaierror, ipa.AddressValueError):
+        raise errors.InvalidIPError(ips)
 
 
 def parse_port_range(ports: str):
