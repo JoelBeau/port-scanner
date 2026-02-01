@@ -38,7 +38,7 @@ async def scan(**flags):
     target = normalize_target(flags["target"])
     verbosity = flags["verbosity"]
 
-    sem = asyncio.Semaphore(conf.MAX_THREADS)
+    sem = asyncio.Semaphore(conf.DEFAULT_CONCURRENCY_FOR_SCANS)
 
     async def scan_single_host(host):
         if not is_reachable(host):

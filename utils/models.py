@@ -99,6 +99,7 @@ class Arguments:
         self.parser.add_argument(
             "-v",
             "--verbosity",
+            type=int,
             choices=conf.VERBOSITY_LEVELS,
             default=conf.DEFAULT_VERBOSE_LEVEL,
             help="Enable verbose output",
@@ -165,7 +166,7 @@ class Arguments:
 
     def parse_exclusions(self, value: str):
         if "," not in value:
-            return list(self.validate_exclusions(value.strip()))
+            return [self.validate_exclusions(value.strip())]
         else:
             exclusions = value.split(",")
             modified_exclusions = []

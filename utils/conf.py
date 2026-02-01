@@ -3,8 +3,6 @@ from scapy.all import conf
 
 conf.use_pcap = True
 
-MAX_THREADS = 250
-
 MAX_VERBOSITY = 3
 MEDIUM_VERBOSITY = 2
 MINIMUM_VERBOSITY = 1

@@ -18,7 +18,7 @@ class Scan(ABC):
 
     def __init__(self, host: str, **flags):
         self._host = host
-        self._ports = flags.get("port")
+        self._ports = list(flags.get("port"))
         self._verbosity = flags.get("verbosity")
         self._retry = flags.get("retry")
         self._timeout = flags.get("timeout")
@@ -290,11 +290,11 @@ class TCPConnect(Scan):
         sem = asyncio.Semaphore(concur)
 
         logger_message = (
-            f"Starting TCP Connect scan on host {self._host} for ports in {self._ports} "
+            f"Starting TCP Connect scan on host {self._host} for ports in {self._ports[0]} to {self._ports[-1]}."
         )
 
         logger.info(logger_message)
-        if self._ports.stop > conf.THRESHOLD_FOR_SLOW_SCAN:
+        if self._ports[-1] > conf.THRESHOLD_FOR_SLOW_SCAN:
             logger_message = (
                 f"Scanning more than {conf.THRESHOLD_FOR_SLOW_SCAN} ports may be slow."
             )
@@ -361,7 +361,7 @@ class TCPConnect(Scan):
 
 class SYNScan(Scan):
 
-    def scan_batch(self, port_list: list[Port], range_of_ports: range):
+    def scan_batch(self, port_list: list[Port], chunk_of_ports: list[int]):
         """
         Performs a SYN scan batch on a range of ports for a target host.
         
@@ -385,7 +385,7 @@ class SYNScan(Scan):
         
         Args:
             port_list (list[Port]): List to append Port objects with scan results to
-            range_of_ports (range): Range of port numbers to scan
+            chunk_of_ports (list[int]): List of port numbers to scan
         
         Returns:
             None (modifies port_list in place)
@@ -396,7 +396,7 @@ class SYNScan(Scan):
         if self._verbosity >= conf.MINIMUM_VERBOSITY:
             print(logger_message)
 
-        logger_message = f"Starting SYN scan batch on host {self._host} for ports in {range_of_ports}."
+        logger_message = f"Starting SYN scan batch on host {self._host} for ports in {chunk_of_ports[0]} to {chunk_of_ports[-1]}."
         logger.info(logger_message)
 
         if self._verbosity >= conf.MINIMUM_VERBOSITY:
@@ -405,7 +405,7 @@ class SYNScan(Scan):
         base_sport = 40000
 
         # Map source ports -> destination port so we can correlate replies
-        sport_map = {base_sport + i: p for i, p in enumerate(range_of_ports)}
+        sport_map = {base_sport + i: p for i, p in enumerate(chunk_of_ports)}
 
         logger.info(f"Preparing packets for SYN scan on host {self._host}...")
         pkts = [
@@ -448,7 +448,7 @@ class SYNScan(Scan):
         if self._verbosity >= conf.MAX_VERBOSITY:
             print(logger_message)
 
-        status = {p: conf.FILTERED_PORT for p in range_of_ports}
+        status = {p: conf.FILTERED_PORT for p in chunk_of_ports}
         seen = set()
 
         logger_message = f"Analyzing replies from {self._host}..."
@@ -481,11 +481,11 @@ class SYNScan(Scan):
                 status[scanned_port] = conf.FILTERED_PORT
                 seen.add(scanned_port)
 
-        for p in range_of_ports:
+        for p in chunk_of_ports:
             tested_port = Port(self._host, p, status[p], status[p] == conf.OPEN_PORT)
             port_list.append(tested_port)
 
-    def _chunks(self, seq, size):
+    def _chunks(self, seq: list[int], size: int):
         logger.info(
             f"Splitting port list of length {len(seq)} into chunks of size {size} for SYN scan."
         )
