@@ -1,9 +1,9 @@
 import asyncio
 import time
 
-from utils.logger import logger
-from utils.models import Arguments
-from utils.scanner_utils import scan
+from port_scanner.utils.logger import logger
+from port_scanner.utils.models import Arguments
+from port_scanner.utils.scanner_utils import scan
 
 
 def main():
@@ -20,6 +20,3 @@ def main():
 
     logger.info("Port scanning completed.")
     logger.info(f"Total scanning time: {end - start:.2f} seconds")
-
-if __name__ == "__main__":
-    main()
