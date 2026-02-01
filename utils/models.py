@@ -1,6 +1,7 @@
 import argparse
 import socket
 import sys
+import utils.errors as errors
 import ipaddress as ipa
 import utils.conf as conf
 
@@ -63,7 +64,7 @@ class ArgParser(argparse.ArgumentParser):
         sys.exit(-1)
 
 
-class Arguements:
+class Arguments:
 
     def __init__(self):
         self.parser = ArgParser(
@@ -160,7 +161,7 @@ class Arguements:
         if output in formats:
             return (output, conf.OUTPUT_TO_CONSOLE)
         
-        raise argparse.ArgumentTypeError(conf.INVALID_OUTPUT_FORMAT_ERROR_MSG)
+        raise errors.InvalidOutputFormatError(output)
 
     def parse_exclusions(self, value: str):
         if "," not in value:
@@ -183,29 +184,33 @@ class Arguements:
                     raise ValueError
                 else:
                     return p
-        except ValueError as e:
-            raise argparse.ArgumentTypeError(f"{conf.INVALID_PORT_EXCLUSION_ERROR_MSG}: {e} ")
-        except ipa.AddressValueError as e:
-            raise argparse.ArgumentTypeError(f"{conf.INVALID_IP_EXCLUSION_ERROR_MSG}: {e} ")
+        except ValueError:
+            raise errors.InvalidPortExclusionError(value)
+        except ipa.AddressValueError:
+            raise errors.InvalidIPExclusionError(value)
 
     def parse_ips(self, ips: str):
         # Check if it's CIDR notation
         if "/" in ips:
             try:
                 network = ipa.IPv4Network(ips, strict=False)
-            except ipa.NetmaskValueError as e:
-                raise argparse.ArgumentTypeError(f"{conf.INVALID_CIDR_ERROR_MSG}: {e}")
+            except ipa.NetmaskValueError:
+                raise errors.InvalidCIDRError(ips)
             return list(network)
         # Not in CIDR notation
         elif "-" not in ips:
             try:
-                ip = ipa.IPv4Address(ips)
-            except ipa.AddressValueError as e:
+                int(ips)
+                raise errors.InvalidIPError(ips)
+            except ValueError:
                 try:
-                    resolved_ip = ipa.IPv4Address(socket.gethostbyname(ips))
-                    return resolved_ip
-                except socket.gaierror as e:
-                    raise argparse.ArgumentTypeError(f"{conf.INVALID_IP_ERROR_MSG}: {e}")
+                    ip = ipa.IPv4Address(ips)
+                except ipa.AddressValueError:
+                    try:
+                        resolved_ip = ipa.IPv4Address(socket.gethostbyname(ips))
+                        return resolved_ip
+                    except socket.gaierror:
+                        raise errors.InvalidIPError(ips)
             return ips
         else:
             try:
@@ -216,26 +221,19 @@ class Arguements:
                 for ip in range(start, end):
                     ip = ipa.IPv4Address(ip)
                 return range(start, end)
-            except ipa.AddressValueError as e:
-                raise argparse.ArgumentTypeError(f"{conf.INVALID_IP_RANGE_ERROR_MSG}: {e}")
+            except ipa.AddressValueError:
+                raise errors.InvalidIPRangeError(ips)
 
     def parse_port_range(self, ports: str):
         delim = "," if "," in ports else "-" if "-" in ports else None
-        try:
-            if not delim:
-                port = int(ports)
-                if port < conf.MINIMUM_PORT or port > conf.MAXIMUM_PORT:
-                    raise ValueError
-                return port
-            else:
-                start, end = map(int, ports.split(delim))
-                print(start, end)
-                if start > end or start == conf.PORT_NOT_ALLOWED or end > conf.MAXIMUM_PORT:
-                    raise ValueError
-                return range(start, end + 1)
-
-        except ValueError as ve:
-            if not delim:
-                raise argparse.ArgumentTypeError(f"{conf.INVALID_PORT_MSG}: {ve}")
-            else:
-                raise argparse.ArgumentTypeError(f"{conf.INVALID_PORT_RANGE_ERROR_MSG}: {ve}")
+        
+        if not delim:
+            port = int(ports)
+            if port < conf.MINIMUM_PORT or port > conf.MAXIMUM_PORT:
+                raise errors.InvalidPortError(ports)
+            return port
+        else:
+            start, end = map(int, ports.split(delim))
+            if start > end or start == conf.PORT_NOT_ALLOWED or end > conf.MAXIMUM_PORT:
+                raise errors.InvalidPortRangeError(ports)
+            return range(start, end + 1)
