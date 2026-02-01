@@ -2,7 +2,7 @@
 import asyncio
 
 import utils.conf as conf
-from utils.models import Port
+from models.port import Port
 from utils.conf import logger
 
 from base import Scan

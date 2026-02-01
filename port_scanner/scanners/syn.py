@@ -2,9 +2,9 @@ import time
 
 import utils.conf as conf
 from scapy.all import AsyncSniffer, send
-from scapy.layers.inet import ICMP, IP, TCP, TCPerror
+from scapy.layers.inet import ICMP, IP, TCP
 
-from utils.models import Port
+from models.port import Port
 from utils.conf import logger
 
 from base import Scan

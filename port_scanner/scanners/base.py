@@ -3,7 +3,7 @@ import aiohttp
 
 from scapy.all import conf as scapy_conf
 
-from utils.models import Port
+from models.port import Port
 from abc import ABC, abstractmethod
 
 from typing import Optional
@@ -36,7 +36,7 @@ class Scan(ABC):
         self._ports = [p for p in self._ports if p not in self._exclude]
         logger.info(f"Removed excluded ports from scan list for host {self._host}.")
 
-    def verbosity_print(self, port_obj: Port):
+    def verbosity_print(self, port_obj: Port) -> None:
         host = self._host
         status = port_obj.get_status()
         port = port_obj.get_port()
