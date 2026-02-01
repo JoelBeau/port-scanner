@@ -6,7 +6,7 @@ class PortScannerError(Exception):
         self.message = message or "portscanner: "
         super().__init__(self.message)
 
-# Arguemnt type errors
+# Argument type errors
 class InvalidPortError(PortScannerError, ArgumentTypeError):
     """Invalid port or port range"""
     def __init__(self, port):
@@ -55,10 +55,4 @@ class InvalidOutputFormatError(PortScannerError, ArgumentTypeError):
     """Invalid output format"""
     def __init__(self, format, message=None):
         message = f"invalid output format specified: {format}"
-        super().__init__(message)
-
-class RequiresSudoError(PortScannerError):
-    """Operation requires sudo privileges"""
-    def __init__(self, message=None):
-        message = "port scanner: You don't have privileges to run port scanner on this device."
         super().__init__(message)
