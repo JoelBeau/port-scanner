@@ -8,12 +8,12 @@ import config as conf
 from models.port import Port
 from tabulate import tabulate
 
-def output_results(results, output_flag):
+def display_results(results, output_flag):
     for result in results:
         if result is None:
             continue
         pscanner, port_list = result
-        output_results(port_list, pscanner.get_host(), output_flag)
+        write_output(port_list, pscanner.get_host(), output_flag)
 
 
 def write_output(port_list: list[Port], host_ip: str, medium: tuple):
