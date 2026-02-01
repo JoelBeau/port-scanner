@@ -1,4 +1,3 @@
-from utils.logger import logger
 from scapy.all import conf
 
 conf.use_pcap = True
