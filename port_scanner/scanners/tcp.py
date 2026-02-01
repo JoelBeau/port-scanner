@@ -1,9 +1,9 @@
 
 import asyncio
 
-import utils.conf as conf
+import config as config
 from models.port import Port
-from utils.conf import logger
+from log import logger
 
 from base import Scan
 
@@ -14,7 +14,7 @@ class TCPConnect(Scan):
         logger_message = f"Attempting to connect to {self._host} on port {port}..."
         logger.info(logger_message)
 
-        if self._verbosity >= conf.MEDIUM_VERBOSITY:
+        if self._verbosity >= config.MEDIUM_VERBOSITY:
             print(logger_message)
 
         try:
@@ -28,28 +28,28 @@ class TCPConnect(Scan):
             except Exception as e:
                 logger.error(f"Error while closing writer: {e}")
                 pass
-            return conf.OPEN_PORT
+            return config.OPEN_PORT
         except (ConnectionRefusedError, OSError) as e:
             if isinstance(e, ConnectionRefusedError):
                 logger.warning(
                     f"Connection refused on {self._host}:{port} - port is CLOSED"
                 )
-                return conf.CLOSED_PORT
-            if getattr(e, "errno", None) in conf.ERRORNO_LIST:
+                return config.CLOSED_PORT
+            if getattr(e, "errno", None) in config.ERRORNO_LIST:
                 logger.warning(
                     f"Connection failed on {self._host}:{port} due to network error {e.errno}"
                 )
-                return conf.FILTERED_PORT
+                return config.FILTERED_PORT
             logger.error(
                 f"Connection to {self._host}:{port} failed due to packet drop or firewall"
             )
-            return conf.FILTERED_PORT
+            return config.FILTERED_PORT
         except asyncio.TimeoutError:
             logger.warning(f"Connection to {self._host}:{port} failed due to timeout")
-            return conf.FILTERED_PORT
+            return config.FILTERED_PORT
 
     async def _scan_batch_connect(
-        self, port_list: list[Port], concur: int = conf.DEFAULT_CONCURRENCY_FOR_SCANS
+        self, port_list: list[Port], concur: int = config.DEFAULT_CONCURRENCY_FOR_SCANS
     ) -> None:
         host = self._host
         sem = asyncio.Semaphore(concur)
@@ -59,19 +59,19 @@ class TCPConnect(Scan):
         )
 
         logger.info(logger_message)
-        if self._ports[-1] > conf.THRESHOLD_FOR_SLOW_SCAN:
+        if self._ports[-1] > config.THRESHOLD_FOR_SLOW_SCAN:
             logger_message = (
-                f"Scanning more than {conf.THRESHOLD_FOR_SLOW_SCAN} ports may be slow."
+                f"Scanning more than {config.THRESHOLD_FOR_SLOW_SCAN} ports may be slow."
             )
             logger.warning(logger_message)
             print(logger_message)
 
-        if self._verbosity >= conf.MINIMUM_VERBOSITY:
+        if self._verbosity >= config.MINIMUM_VERBOSITY:
             print(logger_message)
 
         async def scan_port(port: int):
             # Retry loop, avoiding recursion
-            status = conf.FILTERED_PORT
+            status = config.FILTERED_PORT
 
             for attempt in range(self._retry + 1):
                 logger_message = (
@@ -79,7 +79,7 @@ class TCPConnect(Scan):
                 )
                 logger.info(logger_message)
 
-                if self._verbosity >= conf.MEDIUM_VERBOSITY:
+                if self._verbosity >= config.MEDIUM_VERBOSITY:
                     print(logger_message)
 
                 if attempt > 0:
@@ -87,7 +87,7 @@ class TCPConnect(Scan):
                         f"Retrying port {port} on host {host}, attempt {attempt + 1}..."
                     )
                     logger.warning(logger_message)
-                    if self._verbosity == conf.MAX_VERBOSITY:
+                    if self._verbosity == config.MAX_VERBOSITY:
                         print(logger_message)
 
                 async with sem:
@@ -95,12 +95,12 @@ class TCPConnect(Scan):
                         f"Waiting for connection slot for port {port} on host {host}..."
                     )
                     status = await self._connect_one(port)
-                if status == conf.OPEN_PORT:
+                if status == config.OPEN_PORT:
                     break
 
-            tested = Port(host, port, status, status == conf.OPEN_PORT)
+            tested = Port(host, port, status, status == config.OPEN_PORT)
 
-            if self._verbosity == conf.MAX_VERBOSITY:
+            if self._verbosity == config.MAX_VERBOSITY:
                 self.verbosity_print(port_obj=tested)
 
             return tested
