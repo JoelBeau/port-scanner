@@ -12,8 +12,6 @@ from typing import Optional
 from utils.conf import logger
 import utils.conf as conf
 
-_SCANNER_REGSITRY = {}
-
 class Scan(ABC):
 
     def __init__(self, host: str, **flags):
