@@ -474,7 +474,7 @@ class SYNScan(Scan):
                 elif flags & conf.RESET_FLAG:
                     status[scanned_port] = conf.CLOSED_PORT
                 seen.add(scanned_port)
-            elif pkt.haslayer(ICMP) and pkt[ICMP].type == 3:
+            elif pkt.haslayer(ICMP) and pkt[ICMP].type == conf.ICMP_UNREACHABLE_TYPE:
                 icmp = pkt[ICMP]
                 our_sport = icmp.sport
                 scanned_port = sport_map[our_sport]

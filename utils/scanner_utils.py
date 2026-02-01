@@ -33,7 +33,7 @@ def is_excluded(ip: str, exclusions: list[str]):
     if not exclusions:
         return False
     return ip in exclusions
-
+    
 async def scan(**flags):
     target = normalize_target(flags["target"])
     verbosity = flags["verbosity"]
@@ -93,10 +93,10 @@ def output_results(port_list: list[Port], host_ip: str, medium: tuple):
         else format_type.lower()
     )
 
-    if fmt in ("text", "txt"):
+    if fmt == conf.TEXT_FORMAT:
         data = list(map(lambda p: list(p), port_list))
         headers = [
-            "Host IP",
+            "Host",
             "Port Tested",
             "Port Status",
             "Port Is Open",
@@ -110,7 +110,7 @@ def output_results(port_list: list[Port], host_ip: str, medium: tuple):
         else:
             print(results)
 
-    elif fmt == "csv":
+    elif fmt == conf.CSV_FORMAT:
         data = list(map(lambda p: p.to_dict(), port_list))
         fieldnames = ["host", "port", "status", "is_open", "service_banner"]
 
@@ -126,7 +126,7 @@ def output_results(port_list: list[Port], host_ip: str, medium: tuple):
             writer.writerows(data)
             print(f"\n{buf.getvalue()}")
 
-    elif fmt == "json":
+    elif fmt == conf.JSON_FORMAT:
         data = list(map(lambda p: p.to_dict(), port_list))
         json_obj = json.dumps(data, indent=5)
 
