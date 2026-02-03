@@ -1,3 +1,4 @@
+import logging
 import asyncio
 import aiohttp
 
@@ -7,8 +8,9 @@ from port_scanner.models.port import Port
 from abc import ABC, abstractmethod
 
 from typing import Optional
-from port_scanner.log import logger
 import port_scanner.config as conf
+
+logger = logging.getLogger("port_scanner")
 
 class Scan(ABC):
 

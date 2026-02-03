@@ -1,10 +1,12 @@
+import logging
 import asyncio
 
 from port_scanner import config
 from port_scanner.models.port import Port
-from port_scanner.log import logger
 
 from .base import Scan
+
+logger = logging.getLogger("port_scanner")
 
 class TCPConnect(Scan):
 

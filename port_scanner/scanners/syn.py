@@ -1,12 +1,14 @@
 import time
+import logging
 
 from port_scanner import config
 from port_scanner.models.port import Port
-from port_scanner.log import logger
 from .base import Scan
 
 from scapy.all import AsyncSniffer, send
 from scapy.layers.inet import ICMP, IP, TCP
+
+logger = logging.getLogger("port_scanner")
 
 class SYNScan(Scan):
 

@@ -4,8 +4,10 @@ from port_scanner.scanners import SCANNER_CLASSES
 from port_scanner.models.port import Port
 from port_scanner.utils import network
 from port_scanner import config as conf
-from port_scanner.log import logger
+import port_scanner.errors as errors
+import logging 
 
+logger = logging.getLogger("port_scanner")
 
 async def scan(**flags):
     target = network.normalize_target(flags["target"])
@@ -14,11 +16,12 @@ async def scan(**flags):
     sem = asyncio.Semaphore(conf.DEFAULT_CONCURRENCY_FOR_SCANS)
 
     async def scan_single_host(host):
-        if not network.is_reachable(host):
-            logger_message = f"host {host} is not reachable, skipping..."
-            if verbosity >= conf.MINIMUM_VERBOSITY:
-                print(logger_message)
-            logger.error(logger_message)
+        try:
+            network.is_reachable(host)
+        except errors.HostUnreachableError as e:
+            logger.error(e)
+            if verbosity >= conf.DEFAULT_VERBOSITY:
+                print(e)
             return None
 
         if network.is_excluded(host, flags['exclude']):
