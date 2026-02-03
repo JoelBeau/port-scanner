@@ -10,10 +10,12 @@ from port_scanner.models.arguments import Arguments
 
 
 def main():
+    """Main entry point for the port scanner."""
+
+    validation.check_root_privileges()
 
     logger = log.setup_logger("port_scanner")
 
-    """Main entry point for the port scanner."""
     flags = Arguments().args
     
     logger.info("Starting port scanner...")

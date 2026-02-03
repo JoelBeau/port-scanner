@@ -1,9 +1,14 @@
 import ipaddress as ipa
+import os
 import socket
 
 from port_scanner import config as conf
 from port_scanner import errors
 
+
+def check_root_privileges():
+    if os.geteuid() != 0:
+        raise errors.RootPrivilegeRequiredError()
 
 def parse_outputs(output):
 
