@@ -1,13 +1,27 @@
 import os
+import port_scanner.errors as errors
+import subprocess
 import ipaddress as ipa
+
 
 # Ensure ip is reachable
 def is_reachable(ip: str):
-    output = os.popen(f"ping {ip} -c 4").read()
-    return False if "0 received" in output else True
+    try:
+        subprocess.run(
+            ["ping", "-c", "4", str(ip)],
+            check=False,
+            text=False,
+            timeout=2,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return True
+    except (subprocess.TimeoutExpired, OSError):
+        raise errors.HostUnreachableError(ip)
 
-''' Normalize target into a list of IPs '''
+
 def normalize_target(target):
+    """Normalize target into a list of IPs"""
     if isinstance(target, ipa.IPv4Network):
         return target.hosts()
     elif isinstance(target, range):
