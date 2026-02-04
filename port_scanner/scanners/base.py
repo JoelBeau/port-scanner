@@ -13,8 +13,28 @@ import port_scanner.config as conf
 logger = logging.getLogger("port_scanner")
 
 class Scan(ABC):
+    """Abstract base class for port scanner implementations.
+
+    Defines the interface for scanner implementations and provides shared
+    functionality for banner grabbing (HTTP, SSH, and generic services).
+    Each subclass must implement the scan_host method.
+    """
 
     def __init__(self, host: str, hostname: str, **flags):
+        """Initialize a scanner instance for a specific host.
+
+        Args:
+            host (str): Target IP address.
+            hostname (str): Target hostname (if resolved).
+            **flags: Scanning parameters including:
+                - port: List/range of ports to scan
+                - verbosity: Verbosity level (0-3)
+                - retry: Number of retry attempts
+                - timeout: Connection timeout in seconds
+                - user_agent: Custom HTTP user-agent
+                - exclude: List of ports/IPs to exclude
+                - banner: Whether to grab service banners
+        """
         self._host = host
         self._hostname = hostname
         self._ports = list(flags.get("port"))
@@ -31,22 +51,48 @@ class Scan(ABC):
         self._remove_excluded_ports()
 
     def get_host(self) -> str:
+        """Get the display name for this host.
+
+        Returns the hostname if available, otherwise the IP address.
+
+        Returns:
+            str: Hostname or IP address.
+        """
         if self._hostname:
             return self._hostname
         return self._host
-    
     def display_host(self) -> str:
+        """Get formatted display string for the host.
+
+        Returns hostname with IP address in parentheses if both are available,
+        otherwise just the IP address.
+
+        Returns:
+            str: Formatted host display string.
+        """
         if self._hostname:
             return f"{self._hostname} ({self._host})"
         return self._host
 
     def _remove_excluded_ports(self) -> None:
+        """Filter out excluded ports from the scanning list.
+
+        Removes any ports specified in the exclude list and logs the action.
+        """
         if not self._exclude:
             return
         self._ports = [p for p in self._ports if p not in self._exclude]
         logger.info(f"Removed excluded ports from scan list for host {self._host}.")
 
     def verbosity_print(self, port_obj: Port) -> None:
+        """Print port status message based on verbosity setting.
+
+        Outputs a detailed message about the port status (open, closed, or filtered)
+        for high-verbosity scanning output.
+
+        Args:
+            port_obj (Port): Port object containing scan result.
+        """
         host = self._host
         status = port_obj.get_status()
         port = port_obj.get_port()
@@ -66,6 +112,15 @@ class Scan(ABC):
 
     @abstractmethod
     async def scan_host(self, port_list: list[Port]) -> None:
+        """Scan all ports on the target host.
+
+        Subclasses must implement this method to perform the actual port scanning
+        and populate the port_list with Port objects. May optionally grab service
+        banners if enabled.
+
+        Args:
+            port_list (list[Port]): List to populate with Port scan results.
+        """
         pass
 
     async def grab_http_banner_aiohttp(self, port: int):

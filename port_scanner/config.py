@@ -1,3 +1,12 @@
+"""Configuration constants for the port scanner.
+
+Defines all global configuration parameters, including:
+- Exit codes and verbosity levels
+- Network timeouts and concurrency limits
+- Scanning modes and output formats
+- Service port definitions and protocol flags
+- Error codes and port ranges
+"""
 from scapy.all import conf as scapy_conf
 
 scapy_conf.use_pcap = True

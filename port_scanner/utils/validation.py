@@ -1,3 +1,8 @@
+"""Command-line argument validation and parsing.
+
+Provides validation and parsing functions for all CLI arguments including
+IPs, ports, ranges, CIDR blocks, and output formats.
+"""
 import ipaddress as ipa
 import os
 import socket
@@ -7,10 +12,30 @@ from port_scanner import errors
 
 
 def check_root_privileges():
+    """Verify that the program is running with root/administrator privileges.
+
+    Raises:
+        RootPrivilegeRequiredError: If not running as root.
+    """
     if os.geteuid() != 0:
         raise errors.RootPrivilegeRequiredError()
 
 def parse_outputs(output):
+    """Parse and validate output format specification.
+
+    Interprets output argument as either a format name (txt, json, csv) for
+    console output or a file path for file output.
+
+    Args:
+        output (str): Output format name or file path.
+
+    Returns:
+        tuple: (format_or_path, is_file) where format_or_path is the format
+               or file path, and is_file indicates file output.
+
+    Raises:
+        InvalidOutputFormatError: If format is not recognized.
+    """
 
     # If outputting to a file
     if "." in output:
@@ -24,6 +49,18 @@ def parse_outputs(output):
 
 
 def parse_exclusions(value: str):
+    """Parse comma-separated exclusion list of IPs and/or ports.
+
+    Args:
+        value (str): Comma-separated list of IPs or ports to exclude.
+
+    Returns:
+        list: List of excluded IP addresses (as integers) and port numbers.
+
+    Raises:
+        InvalidIPExclusionError: If an IP address is invalid.
+        InvalidPortExclusionError: If a port is out of range.
+    """
     if "," not in value:
         return [validate_exclusions(value.strip())]
     else:
@@ -35,6 +72,18 @@ def parse_exclusions(value: str):
 
 
 def validate_exclusions(value: str):
+    """Validate and parse a single exclusion value (IP or port).
+
+    Args:
+        value (str): Single IP address or port number as string.
+
+    Returns:
+        int: IP address (as integer) or port number.
+
+    Raises:
+        InvalidIPExclusionError: If IP address is invalid.
+        InvalidPortExclusionError: If port is out of range.
+    """
     try:
         if "." in value:
             ip = ipa.IPv4Address(value)
@@ -52,12 +101,24 @@ def validate_exclusions(value: str):
 
 
 def parse_ips(ips: str):
-    """
-    Accepts only:
-    1) Single IPv4 address
-    2) CIDR block
-    3) Hostname (resolves to IPv4)
-    4) IP range 
+    """Parse and validate IP address input in multiple formats.
+
+    Accepts and normalizes:
+    - Single IPv4 addresses
+    - CIDR notation (e.g., 192.168.1.0/24)
+    - Hostnames (resolved to IPv4)
+    - IP ranges (e.g., 192.168.1.1-192.168.1.10)
+
+    Args:
+        ips (str): IP address specification.
+
+    Returns:
+        IPv4Address, IPv4Network, range, or tuple: Normalized target.
+
+    Raises:
+        InvalidIPError: If single IP address is invalid.
+        InvalidCIDRError: If CIDR notation is invalid.
+        InvalidIPRangeError: If IP range is invalid.
     """
     ips = ips.strip()
 
@@ -97,6 +158,23 @@ def parse_ips(ips: str):
 
 
 def parse_port_range(ports: str):
+    """Parse and validate port range specification.
+
+    Accepts port specifications in multiple formats:
+    - Single port: "80"
+    - Range: "1-1024"
+    - List: "80,443,8080"
+
+    Args:
+        ports (str): Port specification string.
+
+    Returns:
+        range or list: Range object or list of port numbers.
+
+    Raises:
+        InvalidPortError: If a port is out of valid range (1-65535).
+        InvalidPortRangeError: If range bounds are invalid or reversed.
+    """
     delim = "," if "," in ports else "-" if "-" in ports else None
 
     if not delim:

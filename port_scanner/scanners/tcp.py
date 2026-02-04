@@ -1,3 +1,8 @@
+"""TCP Connect port scanning implementation.
+
+Provides TCP Connect scanning that establishes full TCP connections
+to determine port state. No elevated privileges required.
+"""
 import logging
 import asyncio
 
@@ -9,8 +14,25 @@ from .base import Scan
 logger = logging.getLogger("port_scanner")
 
 class TCPConnect(Scan):
+    """TCP Connect scanner - performs full TCP handshake scans.
+
+    Establishes complete TCP connections to target ports to determine whether
+    they are open, closed, or filtered. This is the default, reliable scanning
+    method that works without elevated privileges.
+    """
 
     async def _connect_one(self, port: int) -> str:
+        """Attempt a single TCP connection to a port.
+
+        Tries to establish a TCP connection to the target host on the specified port
+        and immediately closes it, determining the port status from the result.
+
+        Args:
+            port (int): Target port number to test.
+
+        Returns:
+            str: Port status (OPEN_PORT, CLOSED_PORT, or FILTERED_PORT).
+        """
 
         logger_message = f"Attempting to connect to {self._host} on port {port}..."
         logger.info(logger_message)

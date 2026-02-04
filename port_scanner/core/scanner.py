@@ -1,3 +1,9 @@
+"""Orchestration of concurrent port scanning across multiple hosts.
+
+Provides the main scanning pipeline that manages concurrent scanning of multiple
+hosts with proper error handling and logging. Each host maintains isolated state
+and respects global concurrency limits.
+"""
 import asyncio
 
 from port_scanner.scanners import SCANNER_CLASSES
@@ -5,11 +11,30 @@ from port_scanner.models.port import Port
 from port_scanner.utils import network
 from port_scanner import config as conf
 import port_scanner.errors as errors
-import logging 
+import logging
 
 logger = logging.getLogger("port_scanner")
 
+
 async def scan(**flags):
+    """Execute concurrent scanning across multiple target hosts.
+
+    Orchestrates the scanning of one or more target hosts specified in flags.
+    Creates a semaphore-based concurrency control to prevent overwhelming the
+    system, and handles per-host errors gracefully.
+
+    Args:
+        **flags: Command-line argument dictionary containing:
+            - target: Normalized target IP(s), CIDR, range, or hostname
+            - verbosity: Verbosity level (0-3)
+            - scan_type: Type of scan (tcp or syn)
+            - exclude: List of IPs/ports to exclude
+            - (other flags): Additional scanning parameters
+
+    Returns:
+        list: List of tuples (scanner, port_list) for each successfully scanned host,
+              with None entries for unreachable or excluded hosts.
+    """
     target, hostname = network.normalize_target(flags["target"])
     verbosity = flags["verbosity"]
 

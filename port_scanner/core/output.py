@@ -1,3 +1,8 @@
+"""Output formatting and display for scan results.
+
+Provides functions to format scanning results in multiple output formats
+(text table, CSV, JSON) and write to either console or file.
+"""
 import os
 import io
 import csv
@@ -7,7 +12,19 @@ from port_scanner import config as conf
 from port_scanner.models.port import Port
 from tabulate import tabulate
 
+
 def display_results(results, output_flag):
+    """Display scanning results for all hosts.
+
+    Iterates through scan results and formats output according to the
+    specified output flag (format and destination).
+
+    Args:
+        results (list): List of tuples (scanner, port_list) or None values.
+        output_flag (tuple): (format_or_path, is_file) tuple where format_or_path
+                            is the output format or file path, and is_file indicates
+                            whether to write to file.
+    """
     for result in results:
         if result is None:
             continue
@@ -16,6 +33,20 @@ def display_results(results, output_flag):
 
 
 def write_output(port_list: list[Port], host_ip: str, medium: tuple):
+    """Format and write port scan results to specified output medium.
+
+    Formats the scan results in the requested format (txt, csv, json) and
+    writes to either a file or console output. File output includes the
+    host IP in the filename.
+
+    Args:
+        port_list (list[Port]): List of Port objects to output.
+        host_ip (str): Host IP or hostname for the results.
+        medium (tuple): (format_or_path, is_file) where:
+                       - format_or_path: Format name (txt/csv/json) or file path
+                       - is_file: Boolean indicating file output
+    """
+    # Original function body continues
     port_list.sort(key=lambda x: x.get_port())
 
     # Medium is (format_or_path, is_file)

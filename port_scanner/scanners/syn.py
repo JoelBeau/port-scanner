@@ -1,3 +1,8 @@
+"""SYN port scanning implementation.
+
+Provides SYN scanning (half-open scanning) using crafted TCP packets and
+packet sniffing. Requires elevated privileges and Scapy packet handling.
+"""
 import time
 import logging
 
@@ -11,6 +16,12 @@ from scapy.layers.inet import ICMP, IP, TCP
 logger = logging.getLogger("port_scanner")
 
 class SYNScan(Scan):
+    """SYN scanner - performs half-open (SYN) scans.
+
+    Sends crafted SYN packets and analyzes responses to determine port state.
+    Does not complete TCP connections. Requires elevated privileges and
+    packet-handling capabilities.
+    """
 
     def _scan_batch(self, port_list: list[Port], chunk_of_ports: list[int]):
         """
@@ -139,6 +150,17 @@ class SYNScan(Scan):
             port_list.append(tested_port)
 
     def _chunks(self, seq: list[int], size: int):
+        """Split a list into fixed-size chunks for batch processing.
+
+        Generator that yields consecutive chunks of the input sequence.
+
+        Args:
+            seq (list[int]): List of port numbers to chunk.
+            size (int): Size of each chunk.
+
+        Yields:
+            list: Chunks of port numbers of specified size.
+        """
         logger.info(
             f"Splitting port list of length {len(seq)} into chunks of size {size} for SYN scan."
         )
@@ -147,6 +169,15 @@ class SYNScan(Scan):
             yield seq[i : i + size]
 
     async def scan_host(self, port_list) -> None:
+        """Perform a complete SYN scan on the target host.
+
+        Scans all ports using SYN packets sent in batches. Analyzes responses
+        to determine port status and optionally grabs service banners from
+        open ports.
+
+        Args:
+            port_list (list[Port]): List to populate with Port scan results.
+                """
         for chunk in self._chunks(self._ports, conf.SYN_SCAN_BATCH_SIZE):
             self._scan_batch(port_list, chunk)
 
