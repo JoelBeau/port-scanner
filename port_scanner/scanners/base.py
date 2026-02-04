@@ -124,9 +124,21 @@ class Scan(ABC):
         pass
 
     async def grab_http_banner_aiohttp(self, port: int):
-        """
-        HTTP/HTTPS banner via aiohttp: returns status + key headers (Server, X-Powered-By).
-        Works for typical web ports; will NOT work for SSH, etc.
+        """Fetch an HTTP/HTTPS banner using aiohttp.
+
+        Performs a lightweight GET request and returns a compact banner string
+        containing the HTTP status and common metadata headers (e.g., Server,
+        X-Powered-By). This is intended for typical web ports and will not
+        work for non-HTTP protocols (SSH, SMTP, etc.).
+
+        Args:
+            port (int): Target port to query.
+
+        Returns:
+            str | None: Banner string if available, otherwise None.
+
+        Raises:
+            None: Exceptions are caught internally and logged.
         """
         logger_message = f"Grabbing HTTP banner from {self._host}:{port}..."
         logger.info(logger_message)
@@ -184,9 +196,20 @@ class Scan(ABC):
         self,
         port: int = 22,
     ) -> Optional[str]:
-        """
-        SSH banner via raw TCP. SSH servers usually speak first.
-        Returns line like: 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3'
+        """Fetch an SSH banner using a raw TCP connection.
+
+        SSH servers typically send a banner line immediately after the
+        connection is established. This method reads that line and returns it
+        as a decoded string (e.g., 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3').
+
+        Args:
+            port (int, optional): SSH port to query (default: 22).
+
+        Returns:
+            str | None: Banner line if received, otherwise None.
+
+        Raises:
+            None: Exceptions are caught internally and logged.
         """
         logger_message = f"Grabbing SSH banner from {self._host}:{port}..."
         logger.info(logger_message)
@@ -220,10 +243,20 @@ class Scan(ABC):
             return None
 
     async def grab_service_banner(self, port: int) -> Optional[str]:
-        """
-        Best-effort service banner grab:
-        - connects
-        - waits briefly for the server to send something (for 'speak-first' protocols)
+        """Perform a best-effort banner grab for non-HTTP services.
+
+        Establishes a TCP connection and waits briefly for the server to send
+        any initial data (useful for "speak-first" protocols). The response is
+        decoded as UTF-8 with errors ignored.
+
+        Args:
+            port (int): Target port to query.
+
+        Returns:
+            str | None: Banner string if any data is received, otherwise None.
+
+        Raises:
+            None: Exceptions are caught internally and logged.
         """
 
         if self._verbosity == conf.MAX_VERBOSITY:
@@ -264,6 +297,17 @@ class Scan(ABC):
             return None
 
     async def grab_banner_for_port(self, port: int) -> Optional[str]:
+        """Select the appropriate banner-grabbing strategy for a port.
+
+        Routes to SSH, HTTP(S), or generic TCP banner grabbing based on the
+        port number.
+
+        Args:
+            port (int): Target port.
+
+        Returns:
+            str | None: Banner string if available, otherwise None.
+        """
         if port == conf.SSH_PORT:
             return await self.grab_ssh_banner(port)
         if port in conf.ALL_HTTP_PORTS:
@@ -275,6 +319,19 @@ class Scan(ABC):
         port_objs: list[Port],
         concur: int = conf.DEFAULT_CONCURRENCY_FOR_BANNER_GRAB,
     ) -> None:
+        """Fetch banners for open ports with bounded concurrency.
+
+        Filters to open ports, then concurrently fetches banners using the
+        appropriate strategy for each port. Updates Port objects in place
+        with banner strings or a fallback message when unavailable.
+
+        Args:
+            port_objs (list[Port]): Port objects to evaluate and update.
+            concur (int, optional): Maximum concurrent banner fetches.
+
+        Returns:
+            None
+        """
 
         open_ports = [p for p in port_objs if p.check()]
 
