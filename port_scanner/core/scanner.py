@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger("port_scanner")
 
 async def scan(**flags):
-    target = network.normalize_target(flags["target"])
+    target, hostname = network.normalize_target(flags["target"])
     verbosity = flags["verbosity"]
 
     sem = asyncio.Semaphore(conf.DEFAULT_CONCURRENCY_FOR_SCANS)
@@ -33,7 +33,7 @@ async def scan(**flags):
 
         async with sem:
             scan_type = flags["scan_type"]
-            pscanner = SCANNER_CLASSES[scan_type](str(host), **flags)
+            pscanner = SCANNER_CLASSES[scan_type](str(host), hostname, **flags)
             port_list: list[Port] = []
             await pscanner.scan_host(port_list)
             return (pscanner, port_list)
