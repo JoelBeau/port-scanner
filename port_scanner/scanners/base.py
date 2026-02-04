@@ -14,8 +14,9 @@ logger = logging.getLogger("port_scanner")
 
 class Scan(ABC):
 
-    def __init__(self, host: str, **flags):
+    def __init__(self, host: str, hostname: str, **flags):
         self._host = host
+        self._hostname = hostname
         self._ports = list(flags.get("port"))
         self._verbosity = flags.get("verbosity")
         self._retry = flags.get("retry")
@@ -30,8 +31,15 @@ class Scan(ABC):
         self._remove_excluded_ports()
 
     def get_host(self) -> str:
+        if self._hostname:
+            return self._hostname
         return self._host
     
+    def display_host(self) -> str:
+        if self._hostname:
+            return f"{self._hostname} ({self._host})"
+        return self._host
+
     def _remove_excluded_ports(self) -> None:
         if not self._exclude:
             return
@@ -78,7 +86,10 @@ class Scan(ABC):
 
         logger.warning(f"Using scheme {scheme} for banner grabbing on port {port}.")
 
-        url = f"{scheme}://{self._host}:{port}/"
+        domain = self._hostname if self._hostname else self._host
+        logger.info(f"Using domain {domain} for http(s) banner grabbing on port {port}.")
+
+        url = f"{scheme}://{domain}:{port}/"
 
         headers = {}
         if self._user_agent:
@@ -94,6 +105,7 @@ class Scan(ABC):
                 async with session.get(
                     url, headers=headers, allow_redirects=True
                 ) as resp:
+                    logger.info(f"Received response from {url} with status {resp}")
                     server = resp.headers.get("Server")
                     powered = resp.headers.get("X-Powered-By")
 

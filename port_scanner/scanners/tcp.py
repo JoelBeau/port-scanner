@@ -52,7 +52,6 @@ class TCPConnect(Scan):
     async def _scan_batch_connect(
         self, port_list: list[Port], concur: int = config.DEFAULT_CONCURRENCY_FOR_SCANS
     ) -> None:
-        host = self._host
         sem = asyncio.Semaphore(concur)
 
         logger_message = (
@@ -76,7 +75,7 @@ class TCPConnect(Scan):
 
             for attempt in range(self._retry + 1):
                 logger_message = (
-                    f"Scanning port {port} on host {host}, attempt {attempt + 1}..."
+                    f"Scanning port {port} on host {self._host}, attempt {attempt + 1}..."
                 )
                 logger.info(logger_message)
 
@@ -85,7 +84,7 @@ class TCPConnect(Scan):
 
                 if attempt > 0:
                     logger_message = (
-                        f"Retrying port {port} on host {host}, attempt {attempt + 1}..."
+                        f"Retrying port {port} on host {self._host}, attempt {attempt + 1}..."
                     )
                     logger.warning(logger_message)
                     if self._verbosity == config.MAX_VERBOSITY:
@@ -93,13 +92,14 @@ class TCPConnect(Scan):
 
                 async with sem:
                     logger.info(
-                        f"Waiting for connection slot for port {port} on host {host}..."
+                        f"Waiting for connection slot for port {port} on host {self._host}..."
                     )
                     status = await self._connect_one(port)
                 if status == config.OPEN_PORT:
                     break
 
-            tested = Port(host, port, status, status == config.OPEN_PORT)
+
+            tested = Port(self.display_host(), port, status, status == config.OPEN_PORT)
 
             if self._verbosity == config.MAX_VERBOSITY:
                 self.verbosity_print(port_obj=tested)
@@ -108,7 +108,7 @@ class TCPConnect(Scan):
 
         tasks = [asyncio.create_task(scan_port(p)) for p in self._ports]
 
-        logger.info(f"Waiting for scan tasks to complete for host {host}...")
+        logger.info(f"Waiting for scan tasks to complete for host {self._host}...")
 
         # Gather results as they complete
         for t in asyncio.as_completed(tasks):

@@ -1,7 +1,7 @@
 import time
 import logging
 
-from port_scanner import config
+import port_scanner.config as conf
 from port_scanner.models.port import Port
 from .base import Scan
 
@@ -12,7 +12,7 @@ logger = logging.getLogger("port_scanner")
 
 class SYNScan(Scan):
 
-    def scan_batch(self, port_list: list[Port], chunk_of_ports: list[int]):
+    def _scan_batch(self, port_list: list[Port], chunk_of_ports: list[int]):
         """
         Performs a SYN scan batch on a range of ports for a target host.
         
@@ -44,18 +44,18 @@ class SYNScan(Scan):
         logger_message = f"There are no retries when using SYN scan."
         logger.info(logger_message)
 
-        if self._verbosity >= config.MINIMUM_VERBOSITY:
+        if self._verbosity >= conf.MINIMUM_VERBOSITY:
             print(logger_message)
 
         logger_message = f"Starting SYN scan batch on host {self._host} for ports in {chunk_of_ports[0]} to {chunk_of_ports[-1]}."
         logger.info(logger_message)
 
-        if self._verbosity >= config.MINIMUM_VERBOSITY:
+        if self._verbosity >= conf.MINIMUM_VERBOSITY:
             print(logger_message)
 
-        base_sport = 40000
+        base_sport = conf.BASE_SOURCE_PORT
 
-        # Map source ports -> destination port so we can correlate replies
+        # Map source ports -> destination port so replies can be correlated
         sport_map = {base_sport + i: p for i, p in enumerate(chunk_of_ports)}
 
         logger.info(f"Preparing packets for SYN scan on host {self._host}...")
@@ -67,13 +67,13 @@ class SYNScan(Scan):
 
         logger.info(f"Starting sniffer for SYN scan on host {self._host}...")
         sn = AsyncSniffer(
-            iface="eth0", filter=f"tcp or icmp and src host {self._host}", store=True
+            iface=conf.IFACE, filter=f"(tcp or icmp) and src host {self._host}", store=True
         )
 
         logger_message = f"Sniffer started for SYN scan on host {self._host}."
         logger.info(logger_message)
 
-        if self._verbosity >= config.MEDIUM_VERBOSITY:
+        if self._verbosity >= conf.MEDIUM_VERBOSITY:
             print(logger_message)
 
         sn.start()
@@ -81,13 +81,13 @@ class SYNScan(Scan):
         # Send SYN packets
         logger_message = f"Sending SYN packets to {self._host}..."
         logger.info(logger_message)
-        if self._verbosity >= config.MEDIUM_VERBOSITY:
+        if self._verbosity >= conf.MEDIUM_VERBOSITY:
             print(logger_message)
         send(pkts)
 
         logger_message = f"SYN packets sent to {self._host}, waiting for replies..."
         logger.info(logger_message)
-        if self._verbosity >= config.MEDIUM_VERBOSITY:
+        if self._verbosity >= conf.MEDIUM_VERBOSITY:
             print(logger_message)
 
         # Let replies arrive & capture them
@@ -96,22 +96,22 @@ class SYNScan(Scan):
 
         logger_message = f"Captured {len(replies)} replies from {self._host}."
         logger.info(logger_message)
-        if self._verbosity >= config.MAX_VERBOSITY:
+        if self._verbosity >= conf.MAX_VERBOSITY:
             print(logger_message)
 
-        status = {p: config.FILTERED_PORT for p in chunk_of_ports}
+        status = {p: conf.FILTERED_PORT for p in chunk_of_ports}
         seen = set()
 
         logger_message = f"Analyzing replies from {self._host}..."
         logger.info(logger_message)
-        if self._verbosity >= config.MAX_VERBOSITY:
+        if self._verbosity >= conf.MAX_VERBOSITY:
             print(logger_message)
 
         for pkt in replies:
             if pkt.haslayer(TCP):
                 tcp = pkt[TCP]
                 our_sport = int(tcp.dport)
-                scanned_port = sport_map[our_sport]
+                scanned_port = sport_map.get(our_sport)
                 if scanned_port is None:
                     continue
 
@@ -120,20 +120,22 @@ class SYNScan(Scan):
                     continue
                 flags = tcp.flags
                 logger.info(f"TCP flags for port {scanned_port}: {flags}")
-                if flags & config.SYN_ACK_FLAG == config.SYN_ACK_FLAG:
-                    status[scanned_port] = config.OPEN_PORT
-                elif flags & config.RESET_FLAG:
-                    status[scanned_port] = config.CLOSED_PORT
+                if flags & conf.SYN_ACK_FLAG == conf.SYN_ACK_FLAG:
+                    status[scanned_port] = conf.OPEN_PORT
+                elif flags & conf.RESET_FLAG:
+                    status[scanned_port] = conf.CLOSED_PORT
                 seen.add(scanned_port)
-            elif pkt.haslayer(ICMP) and pkt[ICMP].type == config.ICMP_UNREACHABLE_TYPE:
+            elif pkt.haslayer(ICMP) and pkt[ICMP].type == conf.ICMP_UNREACHABLE_TYPE:
                 icmp = pkt[ICMP]
                 our_sport = icmp.sport
-                scanned_port = sport_map[our_sport]
-                status[scanned_port] = config.FILTERED_PORT
+                scanned_port = sport_map.get(our_sport)
+                if scanned_port is None:
+                    continue
+                status[scanned_port] = conf.FILTERED_PORT
                 seen.add(scanned_port)
 
         for p in chunk_of_ports:
-            tested_port = Port(self._host, p, status[p], status[p] == config.OPEN_PORT)
+            tested_port = Port(self.display_host(), p, status[p], status[p] == conf.OPEN_PORT)
             port_list.append(tested_port)
 
     def _chunks(self, seq: list[int], size: int):
@@ -145,8 +147,8 @@ class SYNScan(Scan):
             yield seq[i : i + size]
 
     async def scan_host(self, port_list) -> None:
-        for chunk in self._chunks(self._ports, config.SYN_SCAN_BATCH_SIZE):
-            self.scan_batch(port_list, chunk)
+        for chunk in self._chunks(self._ports, conf.SYN_SCAN_BATCH_SIZE):
+            self._scan_batch(port_list, chunk)
 
         if self._banner:
             await self._get_banners(port_list)
