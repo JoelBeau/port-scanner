@@ -91,7 +91,7 @@ def parse_ips(ips: str):
     # Hostname
     try:
         resolved_ip = socket.gethostbyname(ips)
-        return ipa.IPv4Address(resolved_ip)
+        return (ipa.IPv4Address(resolved_ip), ips)
     except (socket.gaierror, ipa.AddressValueError):
         raise errors.InvalidIPError(ips)
 
@@ -103,9 +103,18 @@ def parse_port_range(ports: str):
         port = int(ports)
         if port < conf.MINIMUM_PORT or port > conf.MAXIMUM_PORT:
             raise errors.InvalidPortError(ports)
-        return port
-    else:
+        return range(port, port + 1)
+    elif delim == "-":
         start, end = map(int, ports.split(delim))
         if start > end or start == conf.PORT_NOT_ALLOWED or end > conf.MAXIMUM_PORT:
             raise errors.InvalidPortRangeError(ports)
         return range(start, end + 1)
+    else:  # delim == ","
+        port_list = []
+        port_strs = ports.split(delim)
+        for p_str in port_strs:
+            p = int(p_str)
+            if p < conf.MINIMUM_PORT or p > conf.MAXIMUM_PORT:
+                raise errors.InvalidPortError(p_str)
+            port_list.append(p)
+        return port_list
