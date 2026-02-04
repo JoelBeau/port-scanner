@@ -61,39 +61,39 @@ def parse_ips(ips: str):
     """
     ips = ips.strip()
 
-    # CIDR block
-    if "/" in ips:
-        try:
-            network = ipa.IPv4Network(ips, strict=False)
-            return list(network)
-        except ipa.NetmaskValueError:
-            raise errors.InvalidCIDRError(ips)
-
-    # IP range (e.g., 192.168.1.1-192.168.1.10)
-    if "-" in ips:
-        try:
-            ips_split = ips.split("-")
-            start = int(ipa.IPv4Address(ips_split[0]))
-            end = int(ipa.IPv4Address(ips_split[1]))
-            # Validate each address in range
-            for ip in range(start, end + 1):
-                ip = ipa.IPv4Address(ip)
-            return range(start, end + 1)
-        except (ipa.AddressValueError, IndexError):
-            raise errors.InvalidIPRangeError(ips)
-
-    # Single IPv4 address
-    try:
-        return ipa.IPv4Address(ips)
-    except ipa.AddressValueError:
-        pass
-
     # Hostname
     try:
         resolved_ip = socket.gethostbyname(ips)
         return (ipa.IPv4Address(resolved_ip), ips)
     except (socket.gaierror, ipa.AddressValueError):
-        raise errors.InvalidIPError(ips)
+        # CIDR block
+        if "/" in ips:
+            try:
+                network = ipa.IPv4Network(ips, strict=False)
+                return list(network)
+            except ipa.NetmaskValueError:
+                raise errors.InvalidCIDRError(ips)
+
+        # IP range (e.g., 192.168.1.1-192.168.1.10)
+        if "-" in ips:
+            try:
+                ips_split = ips.split("-")
+                start = int(ipa.IPv4Address(ips_split[0]))
+                end = int(ipa.IPv4Address(ips_split[1]))
+                # Validate each address in range
+                for ip in range(start, end + 1):
+                    ip = ipa.IPv4Address(ip)
+                return range(start, end + 1)
+            except (ipa.AddressValueError, IndexError):
+                raise errors.InvalidIPRangeError(ips)
+
+        # Single IPv4 address
+        try:
+            return ipa.IPv4Address(ips)
+        except ipa.AddressValueError:
+            pass
+
+    
 
 
 def parse_port_range(ports: str):
