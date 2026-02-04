@@ -112,3 +112,14 @@ class Port:
             str: Formatted string showing host, port, and status.
         """
         return f"{self._host}:{self._port} status: {self._status} "
+
+    def __lt__(self, other):
+        """Less-than comparison based on port number.
+
+        Args:
+            other (Port): Another Port object to compare against.
+        Returns:
+            bool: True if this port number is less than the other, False otherwise.
+        """
+        return self._port < other.get_port()
+    

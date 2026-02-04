@@ -46,8 +46,7 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
                        - format_or_path: Format name (txt/csv/json) or file path
                        - is_file: Boolean indicating file output
     """
-    # Original function body continues
-    port_list.sort(key=lambda x: x.get_port())
+    port_list.sort()
 
     # Medium is (format_or_path, is_file)
     format_type, is_file = medium
@@ -65,7 +64,6 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
     )
 
     if fmt == conf.TEXT_FORMAT:
-        data = list(map(lambda p: list(p), port_list))
         headers = [
             "Host",
             "Port Tested",
@@ -73,7 +71,7 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
             "Port Is Open",
             "Service Banner",
         ]
-        results = tabulate(data, headers=headers, tablefmt="grid")
+        results = tabulate(port_list, headers=headers, tablefmt="grid")
 
         if is_file:
             with open(format_type, "w") as f:
