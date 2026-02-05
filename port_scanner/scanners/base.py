@@ -39,13 +39,13 @@ class Scan(ABC):
         self._hostname = hostname
         self._ports = list(flags.get("port"))
         self._verbosity = flags.get("verbosity")
-        self._retry = flags.get("retry")
-        self._timeout = flags.get("timeout")
+        self._retry = conf.DEFAULT_RETRY if flags.get("retry") is None else flags.get("retry")
+        self._timeout = conf.DEFAULT_TIMEOUT if flags.get("timeout") is None else flags.get("timeout")
         self._user_agent = flags.get("user_agent")
         self._exclude = flags.get("exclude")
         self._banner = flags.get("banner")
 
-        # Set scapy verbosity, dependent on our verbosity
+        # Set scapy verbosity, dependent on verbosity passed in flags
         scapy_conf.verb = self._verbosity
 
         self._remove_excluded_ports()
@@ -162,10 +162,15 @@ class Scan(ABC):
         if self._user_agent:
             headers["User-Agent"] = self._user_agent
 
-        timeout_cfg = aiohttp.ClientTimeout(total=conf.DEFAULT_TIMEOUT)
+        timeout_cfg = aiohttp.ClientTimeout(total=self._timeout)
+
+        use_ssl = False
+
+        if scheme == "https" and self._hostname is not None:
+            use_ssl = True
 
         try:
-            async with aiohttp.ClientSession(timeout=timeout_cfg, connector=aiohttp.TCPConnector(ssl=False)) as session:
+            async with aiohttp.ClientSession(timeout=timeout_cfg, connector=aiohttp.TCPConnector(ssl=use_ssl)) as session:
 
                 logger.info(f"Sending {scheme.upper()} request to {url}...")
 
@@ -221,11 +226,11 @@ class Scan(ABC):
             logger.info(f"Connecting to {self._host}:{port} for SSH banner grab...")
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(self._host, port),
-                timeout=conf.DEFAULT_TIMEOUT,
+                timeout=self._timeout,
             )
             try:
                 line = await asyncio.wait_for(
-                    reader.readline(), timeout=conf.DEFAULT_TIMEOUT
+                    reader.readline(), timeout=self._timeout
                 )
             finally:
                 writer.close()
