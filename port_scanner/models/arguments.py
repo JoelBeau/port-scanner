@@ -94,9 +94,12 @@ class Arguments:
         self.parser.add_argument(
             "-o",
             "--output",
-            type=validation.parse_outputs,
             default=conf.DEFAULT_OUTPUT_MEDIUM,
-            help="Specify the output format or file",
+            type=validation.parse_outputs,
+            help=(
+                "Output format (txt/csv/json) for console, file name without extension, "
+                "or file name with extension (e.g., results.json)"
+            ),
         )
         self.parser.add_argument(
             "-r",
