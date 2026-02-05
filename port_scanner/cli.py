@@ -11,6 +11,7 @@ import asyncio
 import time
 
 import port_scanner.log as log
+import port_scanner.config as conf
 import port_scanner.core.output as output
 import port_scanner.utils.validation as validation
 import port_scanner.core.scanner as scanner
@@ -27,7 +28,6 @@ def main():
     3. Parses and validates command-line arguments
     4. Runs concurrent host/port scanning via asyncio
     5. Formats and displays results
-    6. Reports performance metrics
 
     Raises:
         PortScannerError: If root privileges are missing or argument parsing fails.
@@ -38,8 +38,12 @@ def main():
     logger = log.setup_logger("port_scanner")
 
     flags = Arguments().args
+    logger.info(f"Parsed command-line arguments successfully with: {flags}")
 
-    logger.info("Starting port scanner...")
+    logger_message = "Starting port scanner..."
+    logger.info(logger_message)
+    print(logger_message)
+
     start = time.time()
 
     results = asyncio.run(scanner.scan(**flags))
@@ -48,5 +52,6 @@ def main():
 
     end = time.time()
 
-    logger.info("Port scanning completed.")
-    logger.info(f"Total scanning time: {end - start:.2f} seconds")
+    scanning_time_message = f"Port scanning completed in {end - start:.2f} seconds."
+    logger.info(scanning_time_message)
+    print(scanning_time_message)

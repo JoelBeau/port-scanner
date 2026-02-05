@@ -87,7 +87,7 @@ class Arguments:
             "-v",
             "--verbosity",
             type=int,
-            choices=conf.VERBOSITY_LEVELS,
+            choices=conf.VerbosityLevel.values(),
             default=conf.DEFAULT_VERBOSE_LEVEL,
             help="Enable verbose output",
         )

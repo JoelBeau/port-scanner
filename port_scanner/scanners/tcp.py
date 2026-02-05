@@ -37,7 +37,7 @@ class TCPConnect(Scan):
         logger_message = f"Attempting to connect to {self._host} on port {port}..."
         logger.info(logger_message)
 
-        if self._verbosity >= config.MEDIUM_VERBOSITY:
+        if self._verbosity >= config.VerbosityLevel.MEDIUM:
             print(logger_message)
 
         try:
@@ -88,7 +88,7 @@ class TCPConnect(Scan):
             logger.warning(logger_message)
             print(logger_message)
 
-        if self._verbosity >= config.MINIMUM_VERBOSITY:
+        if self._verbosity >= config.VerbosityLevel.MINIMUM:
             print(logger_message)
 
         async def scan_port(port: int):
@@ -101,7 +101,7 @@ class TCPConnect(Scan):
                 )
                 logger.info(logger_message)
 
-                if self._verbosity >= config.MEDIUM_VERBOSITY:
+                if self._verbosity >= config.VerbosityLevel.MEDIUM:
                     print(logger_message)
 
                 if attempt > 0:
@@ -109,7 +109,7 @@ class TCPConnect(Scan):
                         f"Retrying port {port} on host {self._host}, attempt {attempt + 1}..."
                     )
                     logger.warning(logger_message)
-                    if self._verbosity == config.MAX_VERBOSITY:
+                    if self._verbosity == config.VerbosityLevel.MAXIMUM:
                         print(logger_message)
 
                 async with sem:
@@ -123,7 +123,7 @@ class TCPConnect(Scan):
 
             tested = Port(self.display_host(), port, status, status == config.OPEN_PORT)
 
-            if self._verbosity == config.MAX_VERBOSITY:
+            if self._verbosity == config.VerbosityLevel.MAXIMUM:
                 self.verbosity_print(port_obj=tested)
 
             return tested

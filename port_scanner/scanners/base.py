@@ -143,7 +143,7 @@ class Scan(ABC):
         logger_message = f"Grabbing HTTP banner from {self._host}:{port}..."
         logger.info(logger_message)
 
-        if self._verbosity == conf.MAX_VERBOSITY:
+        if self._verbosity == conf.VerbosityLevel.MAXIMUM:
             print(logger_message)
 
         scheme = "http"
@@ -164,10 +164,10 @@ class Scan(ABC):
 
         timeout_cfg = aiohttp.ClientTimeout(total=self._timeout)
 
-        use_ssl = False
+        use_ssl = conf.DONT_USE_SSL
 
         if scheme == "https" and self._hostname is not None:
-            use_ssl = True
+            use_ssl = conf.USE_SSL
 
         try:
             async with aiohttp.ClientSession(timeout=timeout_cfg, connector=aiohttp.TCPConnector(ssl=use_ssl)) as session:
@@ -177,12 +177,9 @@ class Scan(ABC):
                 async with session.get(
                     url, headers=headers, allow_redirects=True
                 ) as resp:
-                    logger.info(f"Received response from {url} with status {resp}")
+                    logger.info(f"Response recieved from {url}: {resp}")
                     server = resp.headers.get("Server")
                     powered = resp.headers.get("X-Powered-By")
-
-                    # Read a tiny bit if needed
-                    _ = await resp.content.read(200)
 
                     parts = [f"HTTP {resp.status}"]
                     if server:
@@ -219,7 +216,7 @@ class Scan(ABC):
         logger_message = f"Grabbing SSH banner from {self._host}:{port}..."
         logger.info(logger_message)
 
-        if self._verbosity == conf.MAX_VERBOSITY:
+        if self._verbosity == conf.VerbosityLevel.MAXIMUM:
             print(logger_message)
 
         try:
@@ -238,8 +235,8 @@ class Scan(ABC):
                     await writer.wait_closed()
                 except Exception as e:
                     logger.error(f"Error while closing writer: {e}")
-                    pass
 
+            logger.info(f"Received SSH banner line from {self._host}:{port}: {line}")
             banner = line.decode("utf-8", errors="ignore").strip()
             return banner
 
@@ -264,7 +261,7 @@ class Scan(ABC):
             None: Exceptions are caught internally and logged.
         """
 
-        if self._verbosity == conf.MAX_VERBOSITY:
+        if self._verbosity == conf.VerbosityLevel.MAXIMUM:
             print(f"Grabbing running service banner from {self._host}:{port}...")
 
         logger.info(f"Grabbing running service banner from {self._host}:{port}...")
@@ -288,7 +285,6 @@ class Scan(ABC):
                     await writer.wait_closed()
                 except Exception as e:
                     logger.error(f"Error while closing writer: {e}")
-                    pass
 
             if not data:
                 return None
@@ -340,7 +336,7 @@ class Scan(ABC):
 
         open_ports = [p for p in port_objs if p.check()]
 
-        if self._verbosity >= conf.MEDIUM_VERBOSITY:
+        if self._verbosity >= conf.VerbosityLevel.MEDIUM:
             print(f"\nStarting banner grabbing for {len(open_ports)} open ports...")
 
         logger.info(

@@ -45,13 +45,13 @@ async def scan(**flags):
             network.is_reachable(host)
         except errors.HostUnreachableError as e:
             logger.error(e)
-            if verbosity >= conf.DEFAULT_VERBOSITY:
+            if verbosity >= conf.VerbosityLevel.DEFAULT:
                 print(e)
             return None
 
         if network.is_excluded(host, flags['exclude']):
             logger_message = f"host {host} is in exclusions, skipping..."
-            if verbosity >= conf.MINIMUM_VERBOSITY:
+            if verbosity >= conf.VerbosityLevel.MINIMUM:
                 print(logger_message)
             logger.warning(logger_message)
             return None
@@ -60,6 +60,12 @@ async def scan(**flags):
             scan_type = flags["scan_type"]
             pscanner = SCANNER_CLASSES[scan_type](str(host), hostname, **flags)
             port_list: list[Port] = []
+
+            logger_message = f"Scanning host {host} with {scan_type} scan..."
+            logger.info(logger_message)
+            if verbosity >= conf.VerbosityLevel.MINIMUM:
+                print(logger_message)
+            
             await pscanner.scan_host(port_list)
             return (pscanner, port_list)
 

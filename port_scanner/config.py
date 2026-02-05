@@ -8,30 +8,36 @@ Defines all global configuration parameters, including:
 - Error codes and port ranges
 """
 from scapy.all import conf as scapy_conf
+from enum import IntEnum
 
 scapy_conf.use_pcap = True
 
 EXIT_SUCCESS = 0
 EXIT_FAILURE = 1
 
-MAX_VERBOSITY = 3
-MEDIUM_VERBOSITY = 2
-MINIMUM_VERBOSITY = 1
-DEFAULT_VERBOSITY = 0
-VERBOSITY_LEVELS = (
-    DEFAULT_VERBOSITY,
-    MINIMUM_VERBOSITY,
-    MEDIUM_VERBOSITY,
-    MAX_VERBOSITY,
-)
+class VerbosityLevel(IntEnum):
+    
+    MINIMUM = 0
+    DEFAULT = 1
+    MEDIUM = 2
+    MAXIMUM = 3
+
+    def values():
+        return tuple(level.value for level in VerbosityLevel)
+
 LOG_DIR = "/var/log/port-scanner/"
 
 
-IFACE = scapy_conf.iface
 HTTP_PORTS = {80, 8080}
 HTTPS_PORTS = {443, 8443}
 ALL_HTTP_PORTS = HTTP_PORTS.union(HTTPS_PORTS)
+HTTP_SCHEME = "http"
+HTTPS_SCHEME = "https"
 SSH_PORT = 22
+USE_SSL = True
+DONT_USE_SSL = False
+
+IFACE = scapy_conf.iface
 BASE_SOURCE_PORT = 40000
 SYN_ACK_FLAG = 0x12
 RESET_FLAG = 0x04
@@ -51,7 +57,7 @@ SCAN_CHOICES = (TCP_SCAN, SYN_SCAN)
 
 DEFAULT_PORT_RANGE = range(1, 1026)
 DEFAULT_PORT_SCAN_TYPE = TCP_SCAN
-DEFAULT_VERBOSE_LEVEL = DEFAULT_VERBOSITY
+DEFAULT_VERBOSE_LEVEL = VerbosityLevel.DEFAULT
 
 TEXT_FORMAT = "txt"
 JSON_FORMAT = "json"

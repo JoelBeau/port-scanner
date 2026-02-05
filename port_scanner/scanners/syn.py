@@ -58,13 +58,13 @@ class SYNScan(Scan):
         logger_message = f"There are no retries when using SYN scan."
         logger.info(logger_message)
 
-        if self._verbosity >= conf.MINIMUM_VERBOSITY:
+        if self._verbosity >= conf.VerbosityLevel.MINIMUM:
             print(logger_message)
 
         logger_message = f"Starting SYN scan batch on host {self._host} for ports in {chunk_of_ports[0]} to {chunk_of_ports[-1]}."
         logger.info(logger_message)
 
-        if self._verbosity >= conf.MINIMUM_VERBOSITY:
+        if self._verbosity >= conf.VerbosityLevel.MINIMUM:
             print(logger_message)
 
         base_sport = conf.BASE_SOURCE_PORT
@@ -89,7 +89,7 @@ class SYNScan(Scan):
         logger_message = f"Sniffer started for SYN scan on host {self._host}."
         logger.info(logger_message)
 
-        if self._verbosity >= conf.MEDIUM_VERBOSITY:
+        if self._verbosity >= conf.VerbosityLevel.MEDIUM:
             print(logger_message)
 
         sn.start()
@@ -97,13 +97,13 @@ class SYNScan(Scan):
         # Send SYN packets
         logger_message = f"Sending SYN packets to {self._host}..."
         logger.info(logger_message)
-        if self._verbosity >= conf.MEDIUM_VERBOSITY:
+        if self._verbosity >= conf.VerbosityLevel.MEDIUM:
             print(logger_message)
         send(pkts)
 
         logger_message = f"SYN packets sent to {self._host}, waiting for replies..."
         logger.info(logger_message)
-        if self._verbosity >= conf.MEDIUM_VERBOSITY:
+        if self._verbosity >= conf.VerbosityLevel.MEDIUM:
             print(logger_message)
 
         # Let replies arrive & capture them
@@ -113,7 +113,7 @@ class SYNScan(Scan):
 
         logger_message = f"Captured {len(replies)} replies from {self._host}."
         logger.info(logger_message)
-        if self._verbosity >= conf.MAX_VERBOSITY:
+        if self._verbosity >= conf.VerbosityLevel.MAXIMUM:
             print(logger_message)
 
         status = {p: conf.FILTERED_PORT for p in chunk_of_ports}
@@ -121,7 +121,7 @@ class SYNScan(Scan):
 
         logger_message = f"Analyzing replies from {self._host}..."
         logger.info(logger_message)
-        if self._verbosity >= conf.MAX_VERBOSITY:
+        if self._verbosity >= conf.VerbosityLevel.MAXIMUM:
             print(logger_message)
 
         for pkt in replies:
