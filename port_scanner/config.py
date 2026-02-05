@@ -1,24 +1,51 @@
-from scapy.all import conf
+"""Configuration constants for the port scanner.
 
-conf.use_pcap = True
+Defines all global configuration parameters, including:
+- Exit codes and verbosity levels
+- Network timeouts and concurrency limits
+- Scanning modes and output formats
+- Service port definitions and protocol flags
+- Error codes and port ranges
+"""
+from scapy.all import conf as scapy_conf
+from enum import IntEnum
 
-MAX_VERBOSITY = 3
-MEDIUM_VERBOSITY = 2
-MINIMUM_VERBOSITY = 1
-DEFAULT_VERBOSITY = 0
-VERBOSITY_LEVELS = (DEFAULT_VERBOSITY, MINIMUM_VERBOSITY, MEDIUM_VERBOSITY, MAX_VERBOSITY)
+scapy_conf.use_pcap = True
+
+EXIT_SUCCESS = 0
+EXIT_FAILURE = 1
+
+class VerbosityLevel(IntEnum):
+    
+    MINIMUM = 0
+    DEFAULT = 1
+    MEDIUM = 2
+    MAXIMUM = 3
+
+    def values():
+        return tuple(level.value for level in VerbosityLevel)
+
+LOG_DIR = "/var/log/port-scanner/"
+
 
 HTTP_PORTS = {80, 8080}
 HTTPS_PORTS = {443, 8443}
 ALL_HTTP_PORTS = HTTP_PORTS.union(HTTPS_PORTS)
+HTTP_SCHEME = "http"
+HTTPS_SCHEME = "https"
 SSH_PORT = 22
+USE_SSL = True
+DONT_USE_SSL = False
+
+IFACE = scapy_conf.iface
+BASE_SOURCE_PORT = 40000
 SYN_ACK_FLAG = 0x12
 RESET_FLAG = 0x04
 ICMP_UNREACHABLE_TYPE = 3
 
 DEFAULT_TIMEOUT = 1.5
 DEFAULT_READ_BYTES = 1024
-DEFAULT_CONCURRENCY_FOR_SCANS = 450
+DEFAULT_CONCURRENCY_FOR_SCANS = 600
 DEFAULT_CONCURRENCY_FOR_BANNER_GRAB = 50
 DEFAULT_RETRY_COUNT = 0
 
@@ -30,7 +57,7 @@ SCAN_CHOICES = (TCP_SCAN, SYN_SCAN)
 
 DEFAULT_PORT_RANGE = range(1, 1026)
 DEFAULT_PORT_SCAN_TYPE = TCP_SCAN
-DEFAULT_VERBOSE_LEVEL = DEFAULT_VERBOSITY
+DEFAULT_VERBOSE_LEVEL = VerbosityLevel.DEFAULT
 
 TEXT_FORMAT = "txt"
 JSON_FORMAT = "json"

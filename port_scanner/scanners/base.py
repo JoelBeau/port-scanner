@@ -1,3 +1,4 @@
+import logging
 import asyncio
 import aiohttp
 
@@ -7,14 +8,37 @@ from port_scanner.models.port import Port
 from abc import ABC, abstractmethod
 
 from typing import Optional
-from port_scanner.log import logger
 import port_scanner.config as conf
 
-class Scan(ABC):
+logger = logging.getLogger("port_scanner")
 
-    def __init__(self, host: str, **flags):
+
+class Scan(ABC):
+    """Abstract base class for port scanner implementations.
+
+    Defines the interface for scanner implementations and provides shared
+    functionality for banner grabbing (HTTP, SSH, and generic services).
+    Each subclass must implement the scan_host method.
+    """
+
+    def __init__(self, host: str, hostname: str, **flags):
+        """Initialize a scanner instance for a specific host.
+
+        Args:
+            host (str): Target IP address.
+            hostname (str): Target hostname (if resolved).
+            **flags: Scanning parameters including:
+                - port: List/range of ports to scan
+                - verbosity: Verbosity level (0-3)
+                - retry: Number of retry attempts
+                - timeout: Connection timeout in seconds
+                - user_agent: Custom HTTP user-agent
+                - exclude: List of ports/IPs to exclude
+                - banner: Whether to grab service banners
+        """
         self._host = host
-        self._ports = list(flags.get("port"))
+        self._hostname = hostname
+        self._ports = flags.get("port")
         self._verbosity = flags.get("verbosity")
         self._retry = flags.get("retry")
         self._timeout = flags.get("timeout")
@@ -22,21 +46,55 @@ class Scan(ABC):
         self._exclude = flags.get("exclude")
         self._banner = flags.get("banner")
 
-        # Set scapy verbosity, dependent on our verbosity
+        # Set scapy verbosity, dependent on verbosity passed in flags
         scapy_conf.verb = self._verbosity
 
         self._remove_excluded_ports()
 
     def get_host(self) -> str:
+        """Get the display name for this host.
+
+        Returns the hostname if available, otherwise the IP address.
+
+        Returns:
+            str: Hostname or IP address.
+        """
+        if self._hostname:
+            return self._hostname
         return self._host
-    
+
+    def display_host(self) -> str:
+        """Get formatted display string for the host.
+
+        Returns hostname with IP address in parentheses if both are available,
+        otherwise just the IP address.
+
+        Returns:
+            str: Formatted host display string.
+        """
+        if self._hostname:
+            return f"{self._hostname} ({self._host})"
+        return self._host
+
     def _remove_excluded_ports(self) -> None:
+        """Filter out excluded ports from the scanning list.
+
+        Removes any ports specified in the exclude list and logs the action.
+        """
         if not self._exclude:
             return
         self._ports = [p for p in self._ports if p not in self._exclude]
         logger.info(f"Removed excluded ports from scan list for host {self._host}.")
 
     def verbosity_print(self, port_obj: Port) -> None:
+        """Print port status message based on verbosity setting.
+
+        Outputs a detailed message about the port status (open, closed, or filtered)
+        for high-verbosity scanning output.
+
+        Args:
+            port_obj (Port): Port object containing scan result.
+        """
         host = self._host
         status = port_obj.get_status()
         port = port_obj.get_port()
@@ -56,17 +114,38 @@ class Scan(ABC):
 
     @abstractmethod
     async def scan_host(self, port_list: list[Port]) -> None:
+        """Scan all ports on the target host.
+
+        Subclasses must implement this method to perform the actual port scanning
+        and populate the port_list with Port objects. May optionally grab service
+        banners if enabled.
+
+        Args:
+            port_list (list[Port]): List to populate with Port scan results.
+        """
         pass
 
     async def grab_http_banner_aiohttp(self, port: int):
-        """
-        HTTP/HTTPS banner via aiohttp: returns status + key headers (Server, X-Powered-By).
-        Works for typical web ports; will NOT work for SSH, etc.
+        """Fetch an HTTP/HTTPS banner using aiohttp.
+
+        Performs a lightweight GET request and returns a compact banner string
+        containing the HTTP status and common metadata headers (e.g., Server,
+        X-Powered-By). This is intended for typical web ports and will not
+        work for non-HTTP protocols (SSH, SMTP, etc.).
+
+        Args:
+            port (int): Target port to query.
+
+        Returns:
+            str | None: Banner string if available, otherwise None.
+
+        Raises:
+            None: Exceptions are caught internally and logged.
         """
         logger_message = f"Grabbing HTTP banner from {self._host}:{port}..."
         logger.info(logger_message)
 
-        if self._verbosity == conf.MAX_VERBOSITY:
+        if self._verbosity == conf.VerbosityLevel.MAXIMUM:
             print(logger_message)
 
         scheme = "http"
@@ -76,27 +155,37 @@ class Scan(ABC):
 
         logger.warning(f"Using scheme {scheme} for banner grabbing on port {port}.")
 
-        url = f"{scheme}://{self._host}:{port}/"
+        domain = self._hostname if self._hostname else self._host
+        logger.info(
+            f"Using domain {domain} for http(s) banner grabbing on port {port}."
+        )
+
+        url = f"{scheme}://{domain}:{port}/"
 
         headers = {}
         if self._user_agent:
             headers["User-Agent"] = self._user_agent
 
-        timeout_cfg = aiohttp.ClientTimeout(total=conf.DEFAULT_TIMEOUT)
+        timeout_cfg = aiohttp.ClientTimeout(total=self._timeout)
+
+        use_ssl = conf.DONT_USE_SSL
+
+        if scheme == "https" and self._hostname is not None:
+            use_ssl = conf.USE_SSL
 
         try:
-            async with aiohttp.ClientSession(timeout=timeout_cfg, connector=aiohttp.TCPConnector(ssl=False)) as session:
+            async with aiohttp.ClientSession(
+                timeout=timeout_cfg, connector=aiohttp.TCPConnector(ssl=use_ssl)
+            ) as session:
 
                 logger.info(f"Sending {scheme.upper()} request to {url}...")
 
                 async with session.get(
                     url, headers=headers, allow_redirects=True
                 ) as resp:
+                    logger.info(f"Response recieved from {url}: {resp}")
                     server = resp.headers.get("Server")
                     powered = resp.headers.get("X-Powered-By")
-
-                    # Read a tiny bit if needed
-                    _ = await resp.content.read(200)
 
                     parts = [f"HTTP {resp.status}"]
                     if server:
@@ -115,34 +204,43 @@ class Scan(ABC):
         self,
         port: int = 22,
     ) -> Optional[str]:
-        """
-        SSH banner via raw TCP. SSH servers usually speak first.
-        Returns line like: 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3'
+        """Fetch an SSH banner using a raw TCP connection.
+
+        SSH servers typically send a banner line immediately after the
+        connection is established. This method reads that line and returns it
+        as a decoded string (e.g., 'SSH-2.0-OpenSSH_8.9p1 Ubuntu-3').
+
+        Args:
+            port (int, optional): SSH port to query (default: 22).
+
+        Returns:
+            str | None: Banner line if received, otherwise None.
+
+        Raises:
+            None: Exceptions are caught internally and logged.
         """
         logger_message = f"Grabbing SSH banner from {self._host}:{port}..."
         logger.info(logger_message)
 
-        if self._verbosity == conf.MAX_VERBOSITY:
+        if self._verbosity == conf.VerbosityLevel.MAXIMUM:
             print(logger_message)
 
         try:
             logger.info(f"Connecting to {self._host}:{port} for SSH banner grab...")
             reader, writer = await asyncio.wait_for(
                 asyncio.open_connection(self._host, port),
-                timeout=conf.DEFAULT_TIMEOUT,
+                timeout=self._timeout,
             )
             try:
-                line = await asyncio.wait_for(
-                    reader.readline(), timeout=conf.DEFAULT_TIMEOUT
-                )
+                line = await asyncio.wait_for(reader.readline(), timeout=self._timeout)
             finally:
                 writer.close()
                 try:
                     await writer.wait_closed()
                 except Exception as e:
                     logger.error(f"Error while closing writer: {e}")
-                    pass
 
+            logger.info(f"Received SSH banner line from {self._host}:{port}: {line}")
             banner = line.decode("utf-8", errors="ignore").strip()
             return banner
 
@@ -151,13 +249,23 @@ class Scan(ABC):
             return None
 
     async def grab_service_banner(self, port: int) -> Optional[str]:
-        """
-        Best-effort service banner grab:
-        - connects
-        - waits briefly for the server to send something (for 'speak-first' protocols)
+        """Perform a best-effort banner grab for non-HTTP services.
+
+        Establishes a TCP connection and waits briefly for the server to send
+        any initial data (useful for "speak-first" protocols). The response is
+        decoded as UTF-8 with errors ignored.
+
+        Args:
+            port (int): Target port to query.
+
+        Returns:
+            str | None: Banner string if any data is received, otherwise None.
+
+        Raises:
+            None: Exceptions are caught internally and logged.
         """
 
-        if self._verbosity == conf.MAX_VERBOSITY:
+        if self._verbosity == conf.VerbosityLevel.MAXIMUM:
             print(f"Grabbing running service banner from {self._host}:{port}...")
 
         logger.info(f"Grabbing running service banner from {self._host}:{port}...")
@@ -181,7 +289,6 @@ class Scan(ABC):
                     await writer.wait_closed()
                 except Exception as e:
                     logger.error(f"Error while closing writer: {e}")
-                    pass
 
             if not data:
                 return None
@@ -191,10 +298,23 @@ class Scan(ABC):
             return text
 
         except Exception as e:
-            logger.error(f"Service banner grab failed on {self._host}:{port} due to {e}")
+            logger.error(
+                f"Service banner grab failed on {self._host}:{port} due to {e}"
+            )
             return None
 
     async def grab_banner_for_port(self, port: int) -> Optional[str]:
+        """Select the appropriate banner-grabbing strategy for a port.
+
+        Routes to SSH, HTTP(S), or generic TCP banner grabbing based on the
+        port number.
+
+        Args:
+            port (int): Target port.
+
+        Returns:
+            str | None: Banner string if available, otherwise None.
+        """
         if port == conf.SSH_PORT:
             return await self.grab_ssh_banner(port)
         if port in conf.ALL_HTTP_PORTS:
@@ -206,10 +326,23 @@ class Scan(ABC):
         port_objs: list[Port],
         concur: int = conf.DEFAULT_CONCURRENCY_FOR_BANNER_GRAB,
     ) -> None:
+        """Fetch banners for open ports with bounded concurrency.
+
+        Filters to open ports, then concurrently fetches banners using the
+        appropriate strategy for each port. Updates Port objects in place
+        with banner strings or a fallback message when unavailable.
+
+        Args:
+            port_objs (list[Port]): Port objects to evaluate and update.
+            concur (int, optional): Maximum concurrent banner fetches.
+
+        Returns:
+            None
+        """
 
         open_ports = [p for p in port_objs if p.check()]
 
-        if self._verbosity >= conf.MEDIUM_VERBOSITY:
+        if self._verbosity >= conf.VerbosityLevel.MEDIUM:
             print(f"\nStarting banner grabbing for {len(open_ports)} open ports...")
 
         logger.info(
