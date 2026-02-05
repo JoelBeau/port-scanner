@@ -23,11 +23,14 @@ def check_root_privileges():
 def parse_outputs(output):
     """Parse and validate output format specification.
 
-    Interprets output argument as either a format name (txt, json, csv) for
-    console output or a file path for file output.
+    Interprets output as either:
+    - None (defaults to txt console output)
+    - A format name (txt/json/csv) for console output
+    - A file name with extension (e.g., results.json)
+    - A file name without extension (defaults to .txt)
 
     Args:
-        output (str): Output format name or file path.
+        output (str | None): Output format name or file name.
 
     Returns:
         tuple: (format_or_path, is_file) where format_or_path is the format
@@ -37,15 +40,25 @@ def parse_outputs(output):
         InvalidOutputFormatError: If format is not recognized.
     """
 
-    # If outputting to a file
-    if "." in output:
+    if isinstance(output, tuple):
+        return output
+
+    output = output.strip()
+    name, ext = os.path.splitext(output)
+    ext = ext.lstrip(".")
+
+    # If outputting to a file with explicit extension
+    if ext:
+        if ext not in conf.FORMAT_TYPES:
+            raise errors.InvalidOutputFormatError(output)
         return (output, conf.OUTPUT_TO_FILE)
 
     # If just outputting to the terminal
     if output in conf.FORMAT_TYPES:
         return (output, conf.OUTPUT_TO_CONSOLE)
 
-    raise errors.InvalidOutputFormatError(output)
+    # File name without extension defaults to .txt
+    return (f"{output}.{conf.TEXT_FORMAT}", conf.OUTPUT_TO_FILE)
 
 
 def parse_exclusions(value: str):
@@ -78,7 +91,7 @@ def validate_exclusions(value: str):
         value (str): Single IP address or port number as string.
 
     Returns:
-        int: IP address (as integer) or port number.
+        int or IPv4Address: IP address (as IPv4Address) or port number.
 
     Raises:
         InvalidIPExclusionError: If IP address is invalid.
@@ -87,7 +100,7 @@ def validate_exclusions(value: str):
     try:
         if "." in value:
             ip = ipa.IPv4Address(value)
-            return int(ip)
+            return ip
         else:
             p = int(value)
             if p > conf.MAXIMUM_PORT or p == conf.PORT_NOT_ALLOWED:
@@ -131,7 +144,7 @@ def parse_ips(ips: str):
         if "/" in ips:
             try:
                 network = ipa.IPv4Network(ips, strict=False)
-                return list(network)
+                return network
             except ipa.NetmaskValueError:
                 raise errors.InvalidCIDRError(ips)
 
