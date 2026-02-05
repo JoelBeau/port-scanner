@@ -3,6 +3,7 @@
 Provides validation and parsing functions for all CLI arguments including
 IPs, ports, ranges, CIDR blocks, and output formats.
 """
+
 import ipaddress as ipa
 import os
 import socket
@@ -19,6 +20,7 @@ def check_root_privileges():
     """
     if os.geteuid() != 0:
         raise errors.RootPrivilegeRequiredError()
+
 
 def parse_outputs(output):
     """Parse and validate output format specification.
@@ -107,10 +109,10 @@ def validate_exclusions(value: str):
                 raise ValueError
             else:
                 return p
-    except ValueError:
-        raise errors.InvalidPortExclusionError(value)
     except ipa.AddressValueError:
         raise errors.InvalidIPExclusionError(value)
+    except ValueError:
+        raise errors.InvalidPortExclusionError(value)
 
 
 def parse_ips(ips: str):
@@ -156,7 +158,7 @@ def parse_ips(ips: str):
                 end = int(ipa.IPv4Address(ips_split[1]))
                 # Validate each address in range
                 for ip in range(start, end + 1):
-                    ip = ipa.IPv4Address(ip)
+                    ipa.IPv4Address(ip)
                 return range(start, end + 1)
             except (ipa.AddressValueError, IndexError):
                 raise errors.InvalidIPRangeError(ips)
@@ -165,9 +167,7 @@ def parse_ips(ips: str):
         try:
             return ipa.IPv4Address(ips)
         except ipa.AddressValueError:
-            pass
-
-    
+            raise errors.InvalidIPError(ips)
 
 
 def parse_port_range(ports: str):
