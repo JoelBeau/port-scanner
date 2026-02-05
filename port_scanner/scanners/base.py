@@ -12,6 +12,7 @@ import port_scanner.config as conf
 
 logger = logging.getLogger("port_scanner")
 
+
 class Scan(ABC):
     """Abstract base class for port scanner implementations.
 
@@ -37,10 +38,10 @@ class Scan(ABC):
         """
         self._host = host
         self._hostname = hostname
-        self._ports = list(flags.get("port"))
+        self._ports = flags.get("port")
         self._verbosity = flags.get("verbosity")
-        self._retry = conf.DEFAULT_RETRY if flags.get("retry") is None else flags.get("retry")
-        self._timeout = conf.DEFAULT_TIMEOUT if flags.get("timeout") is None else flags.get("timeout")
+        self._retry = flags.get("retry")
+        self._timeout = flags.get("timeout")
         self._user_agent = flags.get("user_agent")
         self._exclude = flags.get("exclude")
         self._banner = flags.get("banner")
@@ -61,6 +62,7 @@ class Scan(ABC):
         if self._hostname:
             return self._hostname
         return self._host
+
     def display_host(self) -> str:
         """Get formatted display string for the host.
 
@@ -154,7 +156,9 @@ class Scan(ABC):
         logger.warning(f"Using scheme {scheme} for banner grabbing on port {port}.")
 
         domain = self._hostname if self._hostname else self._host
-        logger.info(f"Using domain {domain} for http(s) banner grabbing on port {port}.")
+        logger.info(
+            f"Using domain {domain} for http(s) banner grabbing on port {port}."
+        )
 
         url = f"{scheme}://{domain}:{port}/"
 
@@ -170,7 +174,9 @@ class Scan(ABC):
             use_ssl = conf.USE_SSL
 
         try:
-            async with aiohttp.ClientSession(timeout=timeout_cfg, connector=aiohttp.TCPConnector(ssl=use_ssl)) as session:
+            async with aiohttp.ClientSession(
+                timeout=timeout_cfg, connector=aiohttp.TCPConnector(ssl=use_ssl)
+            ) as session:
 
                 logger.info(f"Sending {scheme.upper()} request to {url}...")
 
@@ -226,9 +232,7 @@ class Scan(ABC):
                 timeout=self._timeout,
             )
             try:
-                line = await asyncio.wait_for(
-                    reader.readline(), timeout=self._timeout
-                )
+                line = await asyncio.wait_for(reader.readline(), timeout=self._timeout)
             finally:
                 writer.close()
                 try:
@@ -294,7 +298,9 @@ class Scan(ABC):
             return text
 
         except Exception as e:
-            logger.error(f"Service banner grab failed on {self._host}:{port} due to {e}")
+            logger.error(
+                f"Service banner grab failed on {self._host}:{port} due to {e}"
+            )
             return None
 
     async def grab_banner_for_port(self, port: int) -> Optional[str]:

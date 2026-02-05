@@ -58,7 +58,7 @@ class TCPConnect(Scan):
                     f"Connection refused on {self._host}:{port} - port is CLOSED"
                 )
                 return config.CLOSED_PORT
-            if getattr(e, "errno", None) in config.ERRORNO_LIST:
+            if getattr(e, "errno") in config.ERRORNO_LIST:
                 logger.warning(
                     f"Connection failed on {self._host}:{port} due to network error {e.errno}"
                 )
@@ -77,19 +77,20 @@ class TCPConnect(Scan):
         sem = asyncio.Semaphore(concur)
 
         logger_message = (
-            f"Starting TCP Connect scan on host {self._host} for ports in {self._ports[0]} to {self._ports[-1]}."
+            f"Starting TCP Connect scan on host {self._host} for ports in {self._ports}."
         )
 
         logger.info(logger_message)
+        if self._verbosity >= config.VerbosityLevel.MINIMUM:
+            print(logger_message)
+    
         if self._ports[-1] > config.THRESHOLD_FOR_SLOW_SCAN:
             logger_message = (
-                f"Scanning more than {config.THRESHOLD_FOR_SLOW_SCAN} ports may be slow."
+                f"Scanning more than {config.THRESHOLD_FOR_SLOW_SCAN} ports with tcp connect may be slow."
             )
             logger.warning(logger_message)
             print(logger_message)
 
-        if self._verbosity >= config.VerbosityLevel.MINIMUM:
-            print(logger_message)
 
         async def scan_port(port: int):
             # Retry loop, avoiding recursion

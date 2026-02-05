@@ -61,7 +61,7 @@ class SYNScan(Scan):
         if self._verbosity >= conf.VerbosityLevel.MINIMUM:
             print(logger_message)
 
-        logger_message = f"Starting SYN scan batch on host {self._host} for ports in {chunk_of_ports[0]} to {chunk_of_ports[-1]}."
+        logger_message = f"Starting SYN scan batch on host {self._host} for ports {chunk_of_ports[0]} to {chunk_of_ports[-1]}."
         logger.info(logger_message)
 
         if self._verbosity >= conf.VerbosityLevel.MINIMUM:

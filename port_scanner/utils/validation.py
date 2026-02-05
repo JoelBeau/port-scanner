@@ -194,7 +194,7 @@ def parse_port_range(ports: str):
         port = int(ports)
         if port < conf.MINIMUM_PORT or port > conf.MAXIMUM_PORT:
             raise errors.InvalidPortError(ports)
-        return range(port, port + 1)
+        return [port]
     elif delim == "-":
         start, end = map(int, ports.split(delim))
         if start > end or start == conf.PORT_NOT_ALLOWED or end > conf.MAXIMUM_PORT:
