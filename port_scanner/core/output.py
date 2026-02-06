@@ -3,6 +3,7 @@
 Provides functions to format scanning results in multiple output formats
 (text table, CSV, JSON) and write to either console or file.
 """
+
 import os
 import io
 import csv
@@ -29,7 +30,7 @@ def display_results(results, output_flag):
         if result is None:
             continue
         pscanner, port_list = result
-        write_output(port_list, pscanner.get_host(), output_flag)
+        write_output(port_list, pscanner.display_host(), output_flag)
 
 
 def write_output(port_list: list[Port], host_ip: str, medium: tuple):
@@ -39,17 +40,23 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
     writes to either a file or console output. File output includes the
     host IP in the filename.
 
+    It can also return json or csv representation if being used in a 
+    programmatic context (e.g., API or library usage) instead of printing to console.
+
     Args:
         port_list (list[Port]): List of Port objects to output.
         host_ip (str): Host IP or hostname for the results.
         medium (tuple): (format_or_path, is_file) where:
                        - format_or_path: Format name (txt/csv/json) or file path
                        - is_file: Boolean indicating file output
+    Returns:
+        str or None: Formatted output string if outputting to console, else None.
     """
     port_list.sort()
 
     # Medium is (format_or_path, is_file)
     format_type, is_file = medium
+    data = [dict(p) for p in port_list]
 
     # If writing to a file, build a per-host filename safely
     if is_file:
@@ -64,14 +71,14 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
     )
 
     if fmt == conf.TEXT_FORMAT:
-        headers = [
-            "Host",
-            "Port Tested",
-            "Port Status",
-            "Port Is Open",
-            "Service Banner",
-        ]
-        results = tabulate(port_list, headers=headers, tablefmt="grid")
+        headers = {
+            "host": "Host",
+            "port": "Port Tested",
+            "status": "Port Status",
+            "is_open": "Port Is Open",
+            "service_banner": "Service Banner",
+        }
+        results = tabulate(data, headers=headers, tablefmt="grid")
 
         if is_file:
             with open(format_type, "w") as f:
@@ -80,7 +87,6 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
             print(results)
 
     elif fmt == conf.CSV_FORMAT:
-        data = list(map(lambda p: p.to_dict(), port_list))
         fieldnames = ["host", "port", "status", "is_open", "service_banner"]
 
         if is_file:
@@ -94,9 +100,9 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
             writer.writeheader()
             writer.writerows(data)
             print(f"\n{buf.getvalue()}")
+            return buf.getvalue()
 
     elif fmt == conf.JSON_FORMAT:
-        data = list(map(lambda p: p.to_dict(), port_list))
         json_obj = json.dumps(data, indent=5)
 
         if is_file:
@@ -104,3 +110,4 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
                 jsonf.write(json_obj)
         else:
             print(json_obj)
+            return json_obj

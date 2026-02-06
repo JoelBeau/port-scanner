@@ -81,17 +81,9 @@ class Port:
         Yields:
             Iterable: List of [host, port, status, is_open, service_banner].
         """
-        return iter(
-            [
-                self._host,
-                self._port,
-                self._status,
-                self._is_open,
-                self._service_banner if self._service_banner else "N/A",
-            ]
-        )
+        return iter(self._to_dict().items())
 
-    def to_dict(self):
+    def _to_dict(self):
         """Convert port data to dictionary format.
 
         Returns:
