@@ -6,14 +6,14 @@ build-backend = "setuptools.build_meta"
 name = "socketscout"
 version = "1.0.0"
 description = "A fast, async port scanner with banner grabbing"
-authors = [{name = "Joel Beauregard", email = "your.email@example.com"}]
+authors = [{name = "Joel Beauregard", email = "JoelBeau@users.noreply.github.com"}]
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["socketscout", "port-scanner", "network", "security"]
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: POSIX :: Linux",
 ]
 
