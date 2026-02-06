@@ -4,7 +4,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ## Notice
    - This project is designed to run on Linux, macOS, and Windows systems with Python 3.8 or later installed.
-   - Please note you must either be an admin on Windows, or root/sudo on Linux/MacOS in order to run, so please make sure you have premission.
+   - Please note you must be a root/sudo user on Linux/WSL/MacOS in order to run, so please make sure you have premissions.
    - This project is a work in progress, and I am open to suggestions for improvement. Please let me know if you have any ideas or feedback.
    - **Ethical Use**: This tool is intended for educational purposes and for use on systems you own or have explicit permission to test. Unauthorized scanning of networks or systems may be illegal or unethical.
 
@@ -21,20 +21,28 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ### From PyPI (Comming Soon)
    ```bash
-      pip install port-scanner
+      pip install concurrent-port-scanner
    ```
 
 ### From GitHub Release
    ```bash
-      pip install https://github.com/JoelBeau/port-scanner/releases/download/v1.0.0/port_scanner-1.0.0-py3-none-any.whl
+      pip install https://github.com/JoelBeau/port-scanner/releases/latest/download/port_scanner-1.0.0-py3-none-any.whl
    ```
 
 ### From Source
-   ```bash
-      git clone https://github.com/JoelBeau/port-scanner.git
-      cd port-scanner
-      pip install -e .
-   ```
+   1. By cloning:
+
+      ```bash
+         git clone https://github.com/JoelBeau/port-scanner.git
+         cd port-scanner
+         pip install -e .
+      ```
+   2. By downloading the .tar.gz source archive from the GitHub releases page and installing with pip:
+
+      ```bash
+         pip install https://github.com/JoelBeau/port-scanner/releases/latest/download/port_scanner-1.0.0.tar.gz
+      ```
+
 
 ## Features
 
@@ -49,33 +57,33 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ## How to Use
 
-   1. Basic scan of a single host (defult port range is 1-1025):
+   1. Basic scan of a single host (default port range is 1-1025):
 
       ```bash
-         port-scanner -t 127.0.0.1
+         port-scanner -t localhost
       ```
 
    2. Scan specific ports:
 
       ```bash
-         port-scanner -t 127.0.0.1 -p 22,80,443
+         port-scanner -t localhost -p 22,80,443
       ```
 
    3. Scan a port range:
 
       ```bash
-         port-scanner -t 127.0.0.1 -p 1-1024
+         port-scanner -t localhost -p 1-1024
       ```
       
    4. Scan with banner grabbing & increased verbosity:
 
       ```bash
-         sudo port-scanner -t 127.0.0.1 -v 2 -b
+         sudo port-scanner -t localhost -v 2 -b
       ```
       
    5. Output to text file (other formats are available):
       ```bash
-         sudo port-scanner -t 127.0.0.1 -o test.txt
+         sudo port-scanner -t localhost -o test.txt
       ```
 
    7. View all available options:
@@ -87,8 +95,36 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
    - Default output format (text, to console):
 
-      
+      ```bash
+         port-scanner -t localhost -p 22,80,443 -b
+      ```
 
+      ![Example of text output format to console](https://bit.ly/text-output)
+
+   - JSON output format to console:
+
+      ```bash
+         port-scanner -t localhost -p 22,80,443 -b -o json
+      ```
+
+      ![Example of JSON output format to console](https://bit.ly/json-output)
+   
+   - CSV output format to console:
+
+      ```bash
+         port-scanner -t localhost -p 22,80,443 -b -o csv
+      ```
+      
+      ![Example of CSV output format to console](https://bit.ly/csv-output)
+
+
+   For each output type, they can be written to a file instead of the console by providing a filename instead of "json" or "text" to the `-o` flag. For example:
+
+   ```bash
+      port-scanner -t localhost -p 22,80,443 -b -o results.txt
+   ```
+
+   Note that the file will be renamed by adding on the hostname (if applicable) to the end of the filename, so the above command will actually write to `results-localhost.txt`. This is to prevent overwriting results when scanning multiple hosts.
 
 ## Usage Examples
 
@@ -102,14 +138,14 @@ You can also import and use the scanner in your own Python scripts:
 
       async def main():
           scanner = Scanner(
-              hosts=['127.0.0.1'],
+              hosts=['localhost'],
               ports=range(1, 1025),
               timeout=3.0,
               max_concurrent=50
           )
           results = await scanner.scan()
-          for host, ports in results.items():
-              print(f"{host}: {ports}")
+          for port in results:
+              print(f"{port}")
 
       asyncio.run(main())
    ```
@@ -137,8 +173,14 @@ Input → Host Queue → Scanner Pipeline → Port Check → Banner Grab → Out
 
    ```python
       # Example: TCP connect scan
-      scanner = Scanner(hosts=['example.com'], ports=[80, 443])
-      results = await scanner.scan(method='tcp')
+      flags = {
+         "scan_type": "tcp",
+         "target": "example.com",
+         "ports": [80, 443]
+      }
+
+      scanner = SCANNER_CLASS[flags["scan_type"]](**flags)
+      results = await scanner.scan(**flags)
    ```
 
 ### SYN Scan (Optional)
@@ -148,9 +190,15 @@ Input → Host Queue → Scanner Pipeline → Port Check → Banner Grab → Out
    - Intended for controlled or lab environments
 
    ```python
-      # Example: SYN scan
-      scanner = Scanner(hosts=['example.com'], ports=[80, 443])
-      results = await scanner.scan(method='syn')
+      # Example: TCP connect scan
+      flags = {
+         "scan_type": "tcp",
+         "target": "example.com",
+         "ports": [80, 443]
+      }
+
+      scanner = SCANNER_CLASS[flags["scan_type"]](**flags)
+      results = await scanner.scan(**flags)
    ```
 
 ## Concurrency Model
@@ -163,14 +211,10 @@ Input → Host Queue → Scanner Pipeline → Port Check → Banner Grab → Out
 This design allows the scanner to scale efficiently while maintaining correctness under load.
 
    ```python
-      # Configure concurrency limits
-      scanner = Scanner(
-          hosts=['192.168.1.1', '192.168.1.2'],
-          ports=range(1, 65536),
-          max_concurrent=200,        # Global limit
-          per_host_concurrent=50     # Per-host limit
-      )
+      # Configure concurrency limits in conf.py
+      DEFAULT_CONCURRENCY_FOR_SCANS = 600
    ```
+      
 
 ## Use Cases
 
@@ -181,7 +225,7 @@ This design allows the scanner to scale efficiently while maintaining correctnes
 
 ## Contributing
 
-   Contributions and/or suggestions are welcome! Please open an issue or submit a pull request.
+   Suggestions are welcome! Please open an issue or submit a pull request.
 
 ## License
 
