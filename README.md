@@ -2,21 +2,30 @@
 
 A high-performance, concurrent port scanner written in Python that focuses on correct asynchronous design, per-host isolation, and extensibility. This project demonstrates systems-oriented software engineering with an asyncio-based pipeline for efficient multi-host and large-range scanning.
 
+## Ethical Disclaimer
+   This tool is intended for educational purposes and should only be used on systems you own or have explicit permission to test. Unauthorized scanning of networks or systems may be illegal or unethical. Always ensure you have proper authorization before using this tool.
 ## Notice
-   - This project is designed to run on Linux, macOS, and Windows systems with Python 3.8 or later installed.
-   - **Root/sudo privileges required:** SYN scanning and raw socket operations require elevated privileges on Linux/WSL/macOS
+   - This project is designed to run on Linux, macOS, and Windows systems with Python 3.10 or later installed.
+   - **Root/sudo privileges required:** Raw socket operations require elevated privileges, so you must run this tool with sudo or as root. Use with caution and only on authorized systems.
    - This project is a work in progress, and I am open to suggestions for improvement. Please let me know if you have any ideas or feedback.
-   - **Ethical Use**: This tool is intended for educational purposes and for use on systems you own or have explicit permission to test. Unauthorized scanning of networks or systems may be illegal or unethical.
 
 ## Devices Supported
    - Linux distributions (Ubuntu, Debian, Fedora, etc.)
    - Windows 10 (WSL) or later
    - macOS
 
+### MAC Limitations
+   - Due to the way of how macOS handles raw sockets, the SYN scan mode may not work as expected
+   - SYN scan is still available on macOS, but may produce unreliable results. TCP connect scan is recommended for macOS users.
+   - Possible fixes for more consistent results (not guaranteed):
+      - Increase the timeout (`-T` flag) to allow more time for responses
+      - Set retry count (`-r` flag) to 1 or higher to allow for multiple attempts
+      - Use a smaller port range to reduce the number of packets sent
+
 ## Dependencies
 
 ### System Requirements
-   - Python 3.8 or later
+   - Python 3.10 or later
    - libpcap library (required for packet manipulation)
    
    **Install libpcap:**
@@ -40,15 +49,20 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ### Recommended: Using pipx
    ```bash
-   # Install pipx if you don't have it
-   sudo apt install pipx
+   # Install pipx with apt if you don't have it (or use your package manager)
+   sudo apt-get install pipx
    pipx ensurepath
+
+   source ~/.bashrc  # or ~/.zshrc to refresh your shell environment
    
    # Install socketscout
    pipx install socketscout
+
+   # Create a symbloic link for sudo usage (since pipx installs to ~/.local/bin whiVch is not in the sudo PATH)
+   sudo ln -s ~/.local/bin/socketscout /usr/local/bin/socketscout
    
-   # Run with sudo (required for SYN scanning)
-   sudo ~/.local/bin/socketscout -t localhost
+   # Run with sudo (required)
+   sudo socketscout -t localhost
    ```
 
 ### Alternative: From PyPI with pip
@@ -78,30 +92,6 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    sudo ./build.sh
    ```
 
-## Optional: Shell Alias Setup
-
-To avoid typing the full path with sudo each time, add an alias to your shell configuration:
-
-**For pipx installation:**
-```bash
-# Add to ~/.bashrc or ~/.zshrc
-echo "alias socketscout='sudo ~/.local/bin/socketscout'" >> ~/.bash_aliases
-source ~/.bashrc
-```
-
-**For venv installation:**
-```bash
-# Add to ~/.bashrc or ~/.zshrc
-echo "alias socketscout='sudo ~/socketscout-env/bin/socketscout'" >> ~/.bash_aliases
-source ~/.bashrc
-```
-
-After setting up the alias, you can simply run:
-```bash
-socketscout -t localhost -p 80,443
-```
-
-
 ## Features
 
    - Concurrent scanning across multiple hosts and large port ranges
@@ -115,7 +105,7 @@ socketscout -t localhost -p 80,443
 
 ## How to Use
 
-**Note:** Use `sudo` for SYN scanning or when accessing raw sockets. TCP connect scans may work without sudo on some systems.
+**Note:** Sudo is required to use this tool due to the need for raw socket operations. Make sure to run with appropriate permissions and only on systems you own or have explicit permission to test.
 
    1. Basic scan of a single host (default port range is 1-1025):
 
@@ -310,8 +300,8 @@ CLI Input → models/arguments → utils/validation → core/scanner → scanner
 ### SYN Scan (Optional)
    - Sends crafted SYN packets using `Scapy` to infer port state
    - Lower overhead than full connections
-   - Requires elevated privileges and packet-crafting support
    - Intended for controlled or lab environments
+   - Preforms better with large port ranges and many hosts
 
    ```python
       # Example: SYN connect scan
