@@ -75,9 +75,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    # Clone and install in development mode
    git clone https://github.com/JoelBeau/socketscout.git
    cd socketscout
-   python3 -m venv venv
-   source venv/bin/activate
-   pip install -e .
+   sudo ./build.sh
    ```
 
 ## Optional: Shell Alias Setup
