@@ -23,19 +23,16 @@ install-build-tools() {
             echo -e "${RED}✗ '$tool' package not found${NC}"
             echo "Installing $tool..."
             echo ""
-            set_progress_message "Updating packages... "
-            sudo $pkg_manager update -y
+            run_with_spinner "Updating packages..." sudo $pkg_manager update -y
             if [[ "$tool" == "pipx" ]]; then
                 # Ensure pipx is on the PATH
-                set_progress_message "Installing pipx... "
-                sudo $pkg_manager install -y pipx
+                run_with_spinner "Installing pipx..." sudo $pkg_manager install -y pipx
                 pipx ensurepath
                 
                 # Reload the shell to update PATH for pipx without requiring a new terminal session
                 source ~/.bashrc
             else
-                set_progress_message "Installing $tool... "
-                sudo $pkg_manager install -y python3-$tool
+                run_with_spinner "Installing $tool..." sudo $pkg_manager install -y python3-$tool
             fi
 
             if ! python -c "import $tool" 2>/dev/null; then
@@ -72,25 +69,11 @@ PKG_MANAGER=$(determine-package-manager)
 TOTAL_STEPS=8
 PROGRESS_ENABLED=0
 CURRENT_STEP=0
-SPINNER_PID=0
-SPINNER_RUNNING=0
-CURRENT_MESSAGE=""
-PROGRESS_LINE=0
-PROGRESS_TTY="/dev/tty"
 init_progress() {
-    if command -v tput >/dev/null 2>&1 && [[ -w "$PROGRESS_TTY" ]]; then
+    if command -v tput >/dev/null 2>&1; then
         PROGRESS_ENABLED=1
-        local lines
-        lines=$(tput lines)
-        if [[ "$lines" -lt 3 ]]; then
-            PROGRESS_ENABLED=0
-            return
-        fi
-        tput civis > "$PROGRESS_TTY"
-        PROGRESS_LINE=$((lines - 1))
-        tput csr 0 $((PROGRESS_LINE - 1)) > "$PROGRESS_TTY"
-        tput cup 0 0 > "$PROGRESS_TTY"
-        tput el > "$PROGRESS_TTY"
+        tput civis
+        printf "\n"
         trap 'finish_progress' EXIT
     fi
 }
@@ -111,11 +94,12 @@ update_progress() {
     fi
 
     if [[ "$PROGRESS_ENABLED" -eq 1 ]]; then
-        tput sc > "$PROGRESS_TTY"
-        tput cup "$PROGRESS_LINE" 0 > "$PROGRESS_TTY"
-        printf "[%s%s] %d/%d%s" "$filled_bar" "$empty_bar" "$step" "$TOTAL_STEPS" "$extra" > "$PROGRESS_TTY"
-        tput el > "$PROGRESS_TTY"
-        tput rc > "$PROGRESS_TTY"
+        local line=$(( $(tput lines) - 1 ))
+        tput sc
+        tput cup "$line" 0
+        printf "[%s%s] %d/%d%s" "$filled_bar" "$empty_bar" "$step" "$TOTAL_STEPS" "$extra"
+        tput el
+        tput rc
     else
         printf "\r[%s%s] %d/%d%s" "$filled_bar" "$empty_bar" "$step" "$TOTAL_STEPS" "$extra"
     fi
@@ -124,65 +108,36 @@ update_progress() {
 set_progress_step() {
     CURRENT_STEP=$1
     update_progress "$CURRENT_STEP"
-    restart_spinner
 }
 
-set_progress_message() {
-    CURRENT_MESSAGE=$1
-    restart_spinner
-}
+run_with_spinner() {
+    local message=$1
+    shift
+    local frames='|/-\\'
+    local i=0
+    local spinner_pid=""
 
-start_spinner() {
-    if [[ "$PROGRESS_ENABLED" -eq 1 && "$SPINNER_RUNNING" -eq 0 ]]; then
-        SPINNER_RUNNING=1
-        (
-            local frames='|/-\\'
-            local i=0
-            while true; do
-                local frame=${frames:i%4:1}
-                update_progress "$CURRENT_STEP" "${CURRENT_MESSAGE}${frame}"
-                i=$((i + 1))
-                sleep 0.1
-            done
-        ) &
-        SPINNER_PID=$!
-    fi
-}
+    (
+        while true; do
+            local frame=${frames:i%4:1}
+            update_progress "$CURRENT_STEP" "$message $frame"
+            i=$((i + 1))
+            sleep 0.1
+        done
+    ) &
+    spinner_pid=$!
 
-stop_spinner() {
-    if [[ "$SPINNER_RUNNING" -eq 1 ]]; then
-        kill "$SPINNER_PID" >/dev/null 2>&1 || true
-        wait "$SPINNER_PID" 2>/dev/null || true
-        SPINNER_RUNNING=0
-        update_progress "$CURRENT_STEP"
-    fi
-}
-
-run_without_spinner() {
-    stop_spinner
     "$@"
     local status=$?
-    start_spinner
+    kill "$spinner_pid" >/dev/null 2>&1 || true
+    wait "$spinner_pid" 2>/dev/null || true
     update_progress "$CURRENT_STEP"
     return $status
 }
 
-restart_spinner() {
-    if [[ "$SPINNER_RUNNING" -eq 1 ]]; then
-        stop_spinner
-        start_spinner
-    fi
-}
-
 finish_progress() {
-    stop_spinner
     if [[ "$PROGRESS_ENABLED" -eq 1 ]]; then
-        local lines
-        lines=$(tput lines)
-        tput csr 0 $((lines - 1)) > "$PROGRESS_TTY"
-        tput cup "$PROGRESS_LINE" 0 > "$PROGRESS_TTY"
-        tput el > "$PROGRESS_TTY"
-        tput cnorm > "$PROGRESS_TTY"
+        tput cnorm
     fi
 }
 
@@ -190,9 +145,7 @@ finish_progress() {
 
 # Step 1: Clean previous builds
 init_progress
-start_spinner
 set_progress_step 1
-set_progress_message "Cleaning... "
 echo -e "${YELLOW}Step 1: Cleaning previous builds...${NC}"
 rm -rf dist/ *.egg-info port_scanner.egg-info 2>/dev/null || true
 echo -e "${GREEN}✓ Cleaned${NC}"
@@ -200,7 +153,6 @@ echo ""
 
 # Step 2: Check required Python version & dependency of lipcap-dev (for Linux)
 set_progress_step 2
-set_progress_message "Checking dependencies... "
 echo -e "${YELLOW}Step 2: Checking Python version and dependencies...${NC}"
 PYTHON_VERSION=$(python3 -c "import sys; print(sys.version_info >= (3, 10))")
 if [[ $PYTHON_VERSION -eq 1 ]]; then
@@ -224,10 +176,8 @@ if [[ "$(uname)" == "Linux" ]]; then
         echo "Installing 'libpcap-dev'..."
         echo ""
 
-        set_progress_message "Updating packages... "
-        sudo $PKG_MANAGER update -y
-        set_progress_message "Installing libpcap-dev... "
-        sudo $PKG_MANAGER install -y libpcap-dev
+        run_with_spinner "Updating packages..." sudo $PKG_MANAGER update -y
+        run_with_spinner "Installing libpcap-dev..." sudo $PKG_MANAGER install -y libpcap-dev
 
         echo ""
         if ! dpkg -s libpcap-dev &> /dev/null; then
@@ -243,14 +193,12 @@ echo ""
 
 # Step 3: Check if build tools are installed
 set_progress_step 3
-set_progress_message "Checking build tools... "
 echo -e "${YELLOW}Step 3: Checking build tools...${NC}"
 install-build-tools "$PKG_MANAGER"
 echo ""
 
 # Step 4: Build the package
 set_progress_step 4
-set_progress_message "Building package... "
 echo -e "${YELLOW}Step 4: Building package...${NC}"
 python -m venv --system-site-packages build-env
 source build-env/bin/activate
@@ -262,23 +210,20 @@ echo ""
 
 # Step 5: List created files
 set_progress_step 5
-set_progress_message "Listing files... "
 echo -e "${YELLOW}Step 5: Generated files:${NC}"
 ls -lh dist/
 echo ""
 
 # Step 6: Install the package
 set_progress_step 6
-set_progress_message "Installing SocketScout... "
 echo -e "${YELLOW}Step 6: Installing SocketScout...${NC}"
 WHEEL_FILE=$(ls dist/*.whl | head -n 1)
-run_without_spinner pipx install "$WHEEL_FILE"
+run_with_spinner "Installing SocketScout..." pipx install "$WHEEL_FILE"
 echo ""
 
 
 # Step 7: Check command availability
 set_progress_step 7
-set_progress_message "Verifying installation... "
 echo -e "${YELLOW}Step 7: Verifying installation...${NC}"
 if command -v socketscout &> /dev/null; then
     echo -e "${GREEN}✓ 'socketscout' command is available${NC}"
@@ -290,7 +235,6 @@ fi
 echo ""
 
 set_progress_step 8
-set_progress_message "Finishing... "
 echo -e "${GREEN}=========================================="
 echo -e "✓ Installation complete!${NC}"
 echo ""
