@@ -33,7 +33,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
       git clone https://github.com/JoelBeau/port-scanner.git
       cd port-scanner
       pip install -e .
-    ```
+   ```
 
 ## Features
 
