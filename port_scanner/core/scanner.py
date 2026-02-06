@@ -32,7 +32,7 @@ async def scan(**flags):
             - (other flags): Additional scanning parameters
 
     Returns:
-        list: List of tuples (scanner, port_list) for each successfully scanned host,
+        list: List of port_list for each successfully scanned host,
               with None entries for unreachable or excluded hosts.
     """
     target, hostname = network.normalize_target(flags["target"])
@@ -67,7 +67,7 @@ async def scan(**flags):
                 print(logger_message)
             
             await pscanner.scan_host(port_list)
-            return (pscanner, port_list)
+            return port_list
 
     # Create tasks for all hosts
     tasks = [asyncio.create_task(scan_single_host(host)) for host in target]
