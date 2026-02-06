@@ -81,7 +81,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    # In a virtual environment
    python3 -m venv ~/socketscout-env
    source ~/socketscout-env/bin/activate
-   pip install https://github.com/JoelBeau/socketscout/releases/latest/download/socketscout-1.0.2-py3-none-any.whl
+   pip install https://github.com/JoelBeau/socketscout/releases/latest/download/socketscout-1.0.3-py3-none-any.whl
    ```
 
 ### From Source
