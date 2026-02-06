@@ -66,7 +66,7 @@ echo ""
 # Step 2: Check required Python version & dependency of lipcap-dev (for Linux)
 echo -e "${YELLOW}Step 2: Checking Python version and dependencies...${NC}"
 PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-if [[ "$PYTHON_VERSION" -gt "3.8" ]]; then
+if (( $(echo "$PYTHON_VERSION < 3.8") )); then
     echo -e "${RED}✗ Python 3.8 or higher is required (found $PYTHON_VERSION)${NC}"
     exit 1
 else
@@ -102,7 +102,7 @@ echo ""
 
 # Step 4: Build the package
 echo -e "${YELLOW}Step 4: Building package...${NC}"
-python -m venv build-env
+python -m venv --system-site-packages build-env
 source build-env/bin/activate
 python -m build
 deactivate
