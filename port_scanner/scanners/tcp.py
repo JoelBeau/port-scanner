@@ -52,25 +52,29 @@ class TCPConnect(Scan):
                 await writer.wait_closed()
             except Exception as e:
                 logger.error(f"Error while closing writer: {e}")
-                pass
             return conf.OPEN_PORT
-        except (ConnectionRefusedError, OSError) as e:
-            if isinstance(e, ConnectionRefusedError):
-                logger.warning(
-                    f"Connection refused on {self._host}:{port} - port is CLOSED"
-                )
-                return conf.CLOSED_PORT
-            if getattr(e, "errno") in conf.ERRORNO_LIST:
+        except asyncio.TimeoutError:
+            logger.warning(f"Connection to {self._host}:{port} failed due to timeout")
+            return conf.FILTERED_PORT
+        except ConnectionRefusedError:
+            logger.warning(
+                f"Connection refused on {self._host}:{port} - port is CLOSED"
+            )
+            return conf.CLOSED_PORT
+        except OSError as e:
+            errno = getattr(e, "errno", None)
+            if errno is not None and errno in conf.ERRORNO_LIST:
                 logger.warning(
                     f"Connection failed on {self._host}:{port} due to network error {e.errno}"
                 )
                 return conf.FILTERED_PORT
-            logger.error(
-                f"Connection to {self._host}:{port} failed due to packet drop or firewall"
-            )
-            return conf.FILTERED_PORT
-        except asyncio.TimeoutError:
-            logger.warning(f"Connection to {self._host}:{port} failed due to timeout")
+            else:
+                logger.error(
+                    f"Connection to {self._host}:{port} failed due to OSError: {e}"
+                )
+                return conf.FILTERED_PORT
+        except Exception as e:
+            logger.error(f"Unexpected error while connecting to {self._host}:{port} - {e}")
             return conf.FILTERED_PORT
 
     async def _scan_batch_connect(

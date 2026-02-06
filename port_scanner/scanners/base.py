@@ -148,10 +148,10 @@ class Scan(ABC):
         if self._verbosity == conf.VerbosityLevel.MAXIMUM:
             print(logger_message)
 
-        scheme = "http"
+        scheme = conf.HTTP_SCHEME
 
         if port in conf.HTTPS_PORTS:
-            scheme = "https"
+            scheme = conf.HTTPS_SCHEME
 
         logger.warning(f"Using scheme {scheme} for banner grabbing on port {port}.")
 
