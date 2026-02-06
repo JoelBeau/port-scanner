@@ -107,3 +107,6 @@ def write_output(port_list: list[Port], medium: tuple):
                 jsonf.write(json_obj)
         else:
             print(json_obj)
+
+    if is_file:
+        print(f"Results written to {format_type}")
