@@ -172,7 +172,7 @@ echo ""
 
 show_progress 8
 echo -e "${GREEN}=========================================="
-echo "✓ Installation complete!${NC}"
+echo -e "✓ Installation complete!${NC}"
 echo ""
 echo "You can now run:"
 echo "  sudo socketscout --help"
