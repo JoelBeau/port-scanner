@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "socketscout"
-version = "1.0.1"
+version = "1.0.2"
 description = "A fast, async port scanner with banner grabbing"
 authors = [{name = "Joel Beauregard", email = "JoelBeau@users.noreply.github.com"}]
 readme = "README.md"
@@ -15,6 +15,8 @@ keywords = ["socketscout", "port-scanner", "network", "security"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
 ]
 
 dependencies = [
