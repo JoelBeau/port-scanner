@@ -137,15 +137,17 @@ You can also import and use the scanner in your own Python scripts:
       from port_scanner import Scanner
 
       async def main():
-          scanner = Scanner(
-              hosts=['localhost'],
-              ports=range(1, 1025),
-              timeout=3.0,
-              max_concurrent=50
-          )
-          results = await scanner.scan()
-          for port in results:
-              print(f"{port}")
+
+         flags = {
+            "scan_type": "tcp",
+            "target": "example.com",
+            "ports": [80, 443]
+         }
+
+         scanner = SCANNER_CLASS[flags["scan_type"]](**flags)
+         results = await scanner.scan(**flags)
+         for port in results:
+            print(f"{port}")
 
       asyncio.run(main())
    ```
