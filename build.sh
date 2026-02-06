@@ -75,11 +75,15 @@ CURRENT_STEP=0
 SPINNER_PID=0
 SPINNER_RUNNING=0
 CURRENT_MESSAGE=""
+PROGRESS_LINE=0
 init_progress() {
     if command -v tput >/dev/null 2>&1; then
         PROGRESS_ENABLED=1
         tput civis
-        printf "\n"
+        PROGRESS_LINE=$(( $(tput lines) - 1 ))
+        tput csr 0 $((PROGRESS_LINE - 1))
+        tput cup "$PROGRESS_LINE" 0
+        tput el
         trap 'finish_progress' EXIT
     fi
 }
@@ -100,9 +104,8 @@ update_progress() {
     fi
 
     if [[ "$PROGRESS_ENABLED" -eq 1 ]]; then
-        local line=$(( $(tput lines) - 1 ))
         tput sc
-        tput cup "$line" 0
+        tput cup "$PROGRESS_LINE" 0
         printf "[%s%s] %d/%d%s" "$filled_bar" "$empty_bar" "$step" "$TOTAL_STEPS" "$extra"
         tput el
         tput rc
@@ -149,6 +152,9 @@ stop_spinner() {
 finish_progress() {
     stop_spinner
     if [[ "$PROGRESS_ENABLED" -eq 1 ]]; then
+        tput csr 0 $(( $(tput lines) - 1 ))
+        tput cup "$PROGRESS_LINE" 0
+        tput el
         tput cnorm
     fi
 }
