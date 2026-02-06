@@ -57,8 +57,9 @@ def write_output(port_list: list[Port], medium: tuple):
     if is_file:
         base, ext = os.path.splitext(format_type)
 
-        host_ip = port_list[0].get_host()
-        format_type = f"{base}-{host_ip}{ext}"
+        hostname = port_list[0].get_hostname()
+    
+        format_type = f"{base}-{hostname}{ext}"
 
     # Determine the format keyword (txt/csv/json)
     fmt = (

@@ -12,7 +12,7 @@ class Port:
     (open, closed, filtered), and optional service banner information.
     """
 
-    def __init__(self, host, port, status, is_open=False):
+    def __init__(self, host, port, status, is_open=False, hostname=None):
         """Initialize a Port object with scan results.
 
         Args:
@@ -22,10 +22,11 @@ class Port:
             is_open (bool, optional): Whether the port is open (default: False).
         """
         self._host = host
+        self._hostname = hostname
         self._port = port
         self._status = status
         self._is_open = is_open
-        self._service_banner = None
+        self._service_banner = "N/A"
 
     def check(self):
         """Check if the port is open.
@@ -73,7 +74,19 @@ class Port:
         Args:
             banner (str): Service banner string to store.
         """
+        if banner is None:
+            return
         self._service_banner = banner
+
+    def get_hostname(self):
+        """Get the hostname associated with the port.
+
+        Returns:
+            str or None: Hostname if available, else None.
+        """
+        if self._hostname is not None:
+            return self._hostname
+        return self.get_host()
 
     def __iter__(self):
         """Iterate over port data as a list.
@@ -94,7 +107,7 @@ class Port:
             "port": self._port,
             "status": self._status,
             "is_open": self._is_open,
-            "service_banner": self._service_banner if self._service_banner else "N/A",
+            "service_banner": self._service_banner,
         }
 
     def __str__(self):
@@ -103,7 +116,7 @@ class Port:
         Returns:
             str: Formatted string showing host, port, and status.
         """
-        return f"{self._host}:{self._port} status: {self._status} "
+        return f"{self._host}:{self._port} status: {self._status} banner: {self._service_banner}"
 
     def __lt__(self, other):
         """Less-than comparison based on port number.
