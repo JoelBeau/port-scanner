@@ -9,7 +9,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ## Devices Supported
    - Linux distributions (Ubuntu, Debian, Fedora, etc.)
-   - Windows 10 or later
+   - Windows 10 (WSL) or later
    - macOS
 
 ## Dependencies
@@ -23,17 +23,17 @@ A high-performance, concurrent port scanner written in Python that focuses on co
       pip install port-scanner
    ```
 
+### From GitHub Release
+   ```bash
+      pip install https://github.com/JoelBeau/port-scanner/releases/download/v1.0.0/port_scanner-1.0.0-py3-none-any.whl
+   ```
+
 ### From Source
    ```bash
       git clone https://github.com/JoelBeau/port-scanner.git
       cd port-scanner
       pip install -e .
-   ```
-
-### From GitHub Release
-   ```bash
-      pip install https://github.com/JoelBeau/port-scanner/releases/download/v1.0.0/port_scanner-1.0.0-py3-none-any.whl
-   ```
+    ```
 
 ## Features
 
