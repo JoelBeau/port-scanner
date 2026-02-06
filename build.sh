@@ -28,6 +28,9 @@ install-build-tools() {
                 # Ensure pipx is on the PATH
                 sudo $pkg_manager install -y pipx
                 pipx ensurepath
+                
+                # Reload the shell to update PATH for pipx without requiring a new terminal session
+                source ~/.bashrc
             else
                 sudo $pkg_manager install -y python3-$tool
             fi
@@ -135,21 +138,8 @@ WHEEL_FILE=$(ls dist/*.whl | head -n 1)
 pipx install "$WHEEL_FILE"
 echo ""
 
-# Step 7: Create alias for easy access
-echo -e "${YELLOW}Step 7: Setting up alias...${NC}"
-if [[ -f ~/.bash_aliases ]]; then
-    if ! grep -q "alias socketscout=" ~/.bash_aliases; then
-        echo "alias socketscout='sudo ~/.local/bin/socketscout'" >> ~/.bash_aliases
-        echo -e "${GREEN}✓ Alias added to ~/.bash_aliases${NC}"
-    else
-        echo -e "${YELLOW}✓ Alias already exists in ~/.bash_aliases${NC}"
-    fi
-else
-    echo "alias socketscout='sudo ~/.local/bin/socketscout'" >> ~/.bash_aliases
-    echo -e "${GREEN}✓ Alias created in ~/.bash_aliases${NC}"
-fi
 
-source ~/.bashrc
+
 
 # Step 8: Check command availability
 echo -e "${YELLOW}Step 8: Verifying installation...${NC}"
