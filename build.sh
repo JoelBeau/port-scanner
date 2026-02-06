@@ -194,24 +194,28 @@ echo ""
 # Step 3: Check if build tools are installed
 set_progress_step 3
 echo -e "${YELLOW}Step 3: Checking build tools...${NC}"
-install-build-tools "$PKG_MANAGER"
+run_with_spinner "installing build tools" install-build-tools "$PKG_MANAGER"
 echo ""
+
+build-package() {
+    python -m venv --system-site-packages build-env
+    source build-env/bin/activate
+    python -m build
+    deactivate
+    sudo rm -rf build-env
+}
 
 # Step 4: Build the package
 set_progress_step 4
 echo -e "${YELLOW}Step 4: Building package...${NC}"
-python -m venv --system-site-packages build-env
-source build-env/bin/activate
-python -m build
-deactivate
-sudo rm -rf build-env
+run_with_spinner "building package" build-package
 echo -e "${GREEN}✓ Package built successfully${NC}"
 echo ""
 
 # Step 5: List created files
 set_progress_step 5
 echo -e "${YELLOW}Step 5: Generated files:${NC}"
-ls -lh dist/
+ls -l dist/
 echo ""
 
 # Step 6: Install the package
