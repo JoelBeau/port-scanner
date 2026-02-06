@@ -2,11 +2,13 @@
 
 determine-package-manager() {
     if command -v apt-get &> /dev/null; then
-        return "apt-get"
+        echo "apt-get"
     elif command -v dnf &> /dev/null; then
-        return "dnf"
+        echo "dnf"
+    elif command -v brew &> /dev/null; then
+        echo "brew"
     else
-        return "none"
+        echo "none"
     fi
 }
 
@@ -64,7 +66,7 @@ echo ""
 # Step 2: Check required Python version & dependency of lipcap-dev (for Linux)
 echo -e "${YELLOW}Step 2: Checking Python version and dependencies...${NC}"
 PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-if [[ "$PYTHON_VERSION" < "3.8" ]]; then
+if [[ "$PYTHON_VERSION" -gt "3.8" ]]; then
     echo -e "${RED}✗ Python 3.8 or higher is required (found $PYTHON_VERSION)${NC}"
     exit 1
 else
