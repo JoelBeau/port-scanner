@@ -61,7 +61,20 @@ class SYNScan(Scan):
         if self._verbosity >= conf.VerbosityLevel.MINIMUM:
             print(logger_message)
 
-        logger_message = f"Starting SYN scan batch on host {self._host} for ports {chunk_of_ports[0]} to {chunk_of_ports[-1]}."
+        # Determine port description based on whether ports are consecutive
+        if chunk_of_ports == list(range(chunk_of_ports[0], chunk_of_ports[-1] + 1)):
+            port_desc = f"{chunk_of_ports[0]} to {chunk_of_ports[-1]}"
+        else:
+            # Non-consecutive ports - show them explicitly
+            if len(chunk_of_ports) <= 10:
+                port_desc = ", ".join(map(str, chunk_of_ports))
+            else:
+                # Too many to show all - show first few and last few
+                first_ports = ", ".join(map(str, chunk_of_ports[:5]))
+                last_ports = ", ".join(map(str, chunk_of_ports[-2:]))
+                port_desc = f"{first_ports}, ..., {last_ports}"
+
+        logger_message = f"Starting SYN scan batch on host {self._host} for ports {port_desc}."
         logger.info(logger_message)
 
         if self._verbosity >= conf.VerbosityLevel.MINIMUM:
@@ -153,7 +166,11 @@ class SYNScan(Scan):
 
         for p in chunk_of_ports:
             tested_port = Port(
-                self.display_host(), p, status[p], status[p] == conf.OPEN_PORT
+                self.display_host(),
+                p,
+                status[p],
+                status[p] == conf.OPEN_PORT,
+                self._hostname,
             )
             port_list.append(tested_port)
 
@@ -192,14 +209,18 @@ class SYNScan(Scan):
             await self._scan_batch(port_list, chunk)
 
         chunks = list(self._chunk_list(self._ports, conf.SYN_SCAN_BATCH_SIZE))
-        logger.info(f"Created {len(chunks)} port chunks for SYN scan on host {self._host}.")
+        logger.info(
+            f"Created {len(chunks)} port chunks for SYN scan on host {self._host}."
+        )
 
         logger.info(f"Created tasks for SYN scan on host {self._host}...")
         tasks = [
             asyncio.create_task(_scan_batch_task(port_list, chunk)) for chunk in chunks
         ]
 
-        logger.info(f"Starting SYN scan on host {self._host} with {len(chunks)} batches...")
+        logger.info(
+            f"Starting SYN scan on host {self._host} with {len(chunks)} batches..."
+        )
         await asyncio.gather(*tasks)
 
         if self._banner:
