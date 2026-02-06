@@ -26,26 +26,21 @@ def display_results(results, output_flag):
                             is the output format or file path, and is_file indicates
                             whether to write to file.
     """
-    for result in results:
-        if result is None:
+    for port_list in results:
+        if port_list is None:
             continue
-        pscanner, port_list = result
-        write_output(port_list, pscanner.display_host(), output_flag)
+        write_output(port_list, output_flag)
 
 
-def write_output(port_list: list[Port], host_ip: str, medium: tuple):
+def write_output(port_list: list[Port], medium: tuple):
     """Format and write port scan results to specified output medium.
 
     Formats the scan results in the requested format (txt, csv, json) and
     writes to either a file or console output. File output includes the
     host IP in the filename.
 
-    It can also return json or csv representation if being used in a 
-    programmatic context (e.g., API or library usage) instead of printing to console.
-
     Args:
         port_list (list[Port]): List of Port objects to output.
-        host_ip (str): Host IP or hostname for the results.
         medium (tuple): (format_or_path, is_file) where:
                        - format_or_path: Format name (txt/csv/json) or file path
                        - is_file: Boolean indicating file output
@@ -61,6 +56,8 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
     # If writing to a file, build a per-host filename safely
     if is_file:
         base, ext = os.path.splitext(format_type)
+
+        host_ip = port_list[0].get_host()
         format_type = f"{base}-{host_ip}{ext}"
 
     # Determine the format keyword (txt/csv/json)
@@ -100,7 +97,6 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
             writer.writeheader()
             writer.writerows(data)
             print(f"\n{buf.getvalue()}")
-            return buf.getvalue()
 
     elif fmt == conf.JSON_FORMAT:
         json_obj = json.dumps(data, indent=5)
@@ -110,4 +106,3 @@ def write_output(port_list: list[Port], host_ip: str, medium: tuple):
                 jsonf.write(json_obj)
         else:
             print(json_obj)
-            return json_obj
