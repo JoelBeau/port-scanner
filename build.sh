@@ -158,6 +158,15 @@ stop_spinner() {
     fi
 }
 
+run_without_spinner() {
+    stop_spinner
+    "$@"
+    local status=$?
+    start_spinner
+    update_progress "$CURRENT_STEP"
+    return $status
+}
+
 restart_spinner() {
     if [[ "$SPINNER_RUNNING" -eq 1 ]]; then
         stop_spinner
@@ -263,7 +272,7 @@ set_progress_step 6
 set_progress_message "Installing SocketScout... "
 echo -e "${YELLOW}Step 6: Installing SocketScout...${NC}"
 WHEEL_FILE=$(ls dist/*.whl | head -n 1)
-pipx install "$WHEEL_FILE"
+run_without_spinner pipx install "$WHEEL_FILE"
 echo ""
 
 
