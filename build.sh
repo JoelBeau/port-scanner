@@ -2,11 +2,13 @@
 
 determine-package-manager() {
     if command -v apt-get &> /dev/null; then
-        return "apt-get"
+        echo "apt-get"
     elif command -v dnf &> /dev/null; then
-        return "dnf"
+        echo "dnf"
+    elif command -v brew &> /dev/null; then
+        echo "brew"
     else
-        return "none"
+        echo "none"
     fi
 }
 
