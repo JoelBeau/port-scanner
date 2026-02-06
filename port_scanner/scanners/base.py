@@ -21,7 +21,7 @@ class Scan(ABC):
     Each subclass must implement the scan_host method.
     """
 
-    def __init__(self, host: str, hostname: str, **flags):
+    def __init__(self, host: str, hostname: Optional[str] = None, **flags):
         """Initialize a scanner instance for a specific host.
 
         Args:
@@ -38,13 +38,13 @@ class Scan(ABC):
         """
         self._host = host
         self._hostname = hostname
-        self._ports = flags.get("port")
-        self._verbosity = flags.get("verbosity")
-        self._retry = flags.get("retry")
-        self._timeout = flags.get("timeout")
-        self._user_agent = flags.get("user_agent")
-        self._exclude = flags.get("exclude")
-        self._banner = flags.get("banner")
+        self._ports = flags.get("port", conf.DEFAULT_PORT_RANGE)
+        self._verbosity = flags.get("verbosity", conf.VerbosityLevel.DEFAULT)
+        self._retry = flags.get("retry", conf.DEFAULT_RETRY_COUNT)
+        self._timeout = flags.get("timeout", conf.DEFAULT_TIMEOUT)
+        self._user_agent = flags.get("user_agent", conf.DEFAULT_USER_AGENT)
+        self._exclude = flags.get("exclude", None)
+        self._banner = flags.get("banner", conf.DEFAULT_SERVICE_BANNER_GRAB)
 
         # Set scapy verbosity, dependent on verbosity passed in flags
         scapy_conf.verb = self._verbosity
