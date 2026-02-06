@@ -367,5 +367,7 @@ class Scan(ABC):
                     f"Could not retrieve banner for {self._host}:{pobj.get_port()}"
                 )
                 pobj.set_service_banner("No banner retrieved")
+                
+        tasks = [asyncio.create_task(one(p)) for p in open_ports]
 
-        return await asyncio.gather(*(one(p) for p in open_ports))
+        return await asyncio.gather(*tasks)
