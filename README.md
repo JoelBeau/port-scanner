@@ -152,6 +152,36 @@ You can also import and use the scanner in your own Python scripts:
       asyncio.run(main())
    ```
 
+### Logging
+
+The port scanner includes a centralized logging system that tracks all operations and events during scanning. 
+
+**Location:** [port_scanner/log.py](port_scanner/log.py)
+
+**Features:**
+- File-based logging to `port_scanner.log`
+- Configurable log directory via `port_scanner/config.py`
+- Automatic log flushing on program exit
+- Timestamp, logger name, and log level included in each message
+- Default logging level: INFO
+
+**Log Output:**
+Logs are written to the configured log directory (typically `~/.config/port_scanner/logs/` or your custom `LOG_DIR` setting in config.py).
+
+**Using the Logger in Your Code:**
+
+```python
+from port_scanner.log import setup_logger
+
+# Create a logger for your module
+logger = setup_logger(__name__)
+
+# Log at different levels
+logger.info("Scan started")
+logger.warning("High latency detected")
+logger.error("Connection timeout")
+```
+
 ## Design Overview
 
 This project is structured as a pipeline rather than a monolithic loop. Each target host maintains its own scanning state and concurrency limits, preventing shared-state bugs and ensuring predictable behavior when scanning multiple hosts concurrently.
@@ -163,6 +193,38 @@ Input → Host Queue → Scanner Pipeline → Port Check → Banner Grab → Out
                           ↓
                     Per-Host State
                    (isolation, limits)
+```
+
+## Architecture & Components
+
+The port scanner is organized into modular components, each responsible for a specific aspect of the scanning pipeline:
+
+### `core/`
+   - **scanner.py**: Main orchestration engine that manages the concurrent scanning pipeline across multiple hosts. Handles semaphore-based concurrency control, error handling, and per-host state isolation.
+   - **output.py**: Formats and displays scan results in multiple formats (text, CSV, JSON) to console or file.
+
+### `scanners/`
+   - **base.py**: Abstract base class `Scan` defining the scanner interface. Implements shared functionality for banner grabbing across HTTP, SSH, and generic services.
+   - **tcp.py**: `TCPConnect` implementation—establishes full TCP connections to test port availability. Default, reliable scanning method.
+   - **syn.py**: `SYNScan` implementation—uses raw SYN packets for lower-overhead scanning. Requires elevated privileges.
+
+### `models/`
+   - **port.py**: `Port` data class representing scan results with service metadata (port number, state, banner info).
+   - **arguments.py**: Argument validation and normalization for command-line flags.
+
+### `utils/`
+   - **network.py**: Network helper functions for IP/CIDR/hostname parsing, DNS resolution, and reachability checks.
+   - **validation.py**: Input validation for ports, targets, and configuration parameters.
+
+### `config.py` & `log.py`
+   - **config.py**: Centralized configuration constants (timeouts, concurrency limits, log directories).
+   - **log.py**: Logging setup with file-based output and configurable log levels.
+
+**Component Interaction:**
+```
+CLI Input → models/arguments → utils/validation → core/scanner → scanners/{tcp,syn} → core/output
+                ↓                                                                           ↓
+           log.py ←──────────────────────────────────────────────────────────────────────→
 ```
 
 ## Scanning Modes
@@ -192,9 +254,9 @@ Input → Host Queue → Scanner Pipeline → Port Check → Banner Grab → Out
    - Intended for controlled or lab environments
 
    ```python
-      # Example: TCP connect scan
+      # Example: SYN connect scan
       flags = {
-         "scan_type": "tcp",
+         "scan_type": "syn",
          "target": "example.com",
          "ports": [80, 443]
       }
@@ -216,7 +278,7 @@ This design allows the scanner to scale efficiently while maintaining correctnes
       # Configure concurrency limits in conf.py
       DEFAULT_CONCURRENCY_FOR_SCANS = 600
    ```
-      
+
 
 ## Use Cases
 
