@@ -48,16 +48,16 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ## How to Use
 
-   1. Basic scan of a single host:
+   1. Basic scan of a single host (scans ports 1-1025):
 
       ```bash
-         port-scanner 192.168.1.1
+         port-scanner -t 192.168.1.1
       ```
 
    2. Scan specific ports:
 
       ```bash
-         port-scanner 192.168.1.1 -p 80,443,8080
+         port-scanner -t 192.168.1.1 -p 22,80,443,8080
       ```
 
    3. Scan a port range:
@@ -65,14 +65,13 @@ A high-performance, concurrent port scanner written in Python that focuses on co
       ```bash
          port-scanner 192.168.1.1 -p 1-1024
       ```
-
-   4. Scan with custom timeout and threads:
+      
+   4. Scan with banner grabbing & increased verboisty:
 
       ```bash
-         port-scanner 192.168.1.1 -p 1-10000 --timeout 2 --threads 100
-      ```
+         sudo port-scanner 192.168.1.1 -v 2 -b
 
-   5. View all available options:
+   6. View all available options:
 
       ```bash
          port-scanner --help
