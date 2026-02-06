@@ -4,6 +4,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ## Notice
    - This project is designed to run on Linux, macOS, and Windows systems with Python 3.8 or later installed.
+   - Please note you must either be an admin on Windows, or root/sudo on Linux/MacOS in order to run, so please make sure you have premission.
    - This project is a work in progress, and I am open to suggestions for improvement. Please let me know if you have any ideas or feedback.
    - **Ethical Use**: This tool is intended for educational purposes and for use on systems you own or have explicit permission to test. Unauthorized scanning of networks or systems may be illegal or unethical.
 
@@ -48,30 +49,36 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ## How to Use
 
-   1. Basic scan of a single host (scans ports 1-1025):
+   1. Basic scan of a single host (defult port range is 1-1025):
 
       ```bash
-         port-scanner -t 192.168.1.1
+         port-scanner -t 127.0.0.1
       ```
 
    2. Scan specific ports:
 
       ```bash
-         port-scanner -t 192.168.1.1 -p 22,80,443,8080
+         port-scanner -t 127.0.0.1 -p 22,80,443
       ```
 
    3. Scan a port range:
 
       ```bash
-         port-scanner 192.168.1.1 -p 1-1024
+         port-scanner -t 127.0.0.1 -p 1-1024
       ```
       
-   4. Scan with banner grabbing & increased verboisty:
+   4. Scan with banner grabbing & increased verbosity:
 
       ```bash
-         sudo port-scanner 192.168.1.1 -v 2 -b
+         sudo port-scanner -t 127.0.0.1 -v 2 -b
+      ```
+      
+   5. Output to text file (other formats are available):
+      ```bash
+         sudo port-scanner -t 127.0.0.1 -o test.txt
+      ```
 
-   6. View all available options:
+   7. View all available options:
 
       ```bash
          port-scanner --help
@@ -89,7 +96,7 @@ You can also import and use the scanner in your own Python scripts:
 
       async def main():
           scanner = Scanner(
-              hosts=['192.168.1.1'],
+              hosts=['127.0.0.1'],
               ports=range(1, 1025),
               timeout=3.0,
               max_concurrent=50
@@ -135,7 +142,7 @@ Input → Host Queue → Scanner Pipeline → Port Check → Banner Grab → Out
    - Intended for controlled or lab environments
 
    ```python
-      # Example: SYN scan (requires root/admin)
+      # Example: SYN scan
       scanner = Scanner(hosts=['example.com'], ports=[80, 443])
       results = await scanner.scan(method='syn')
    ```
@@ -168,7 +175,7 @@ This design allows the scanner to scale efficiently while maintaining correctnes
 
 ## Contributing
 
-   Contributions are welcome! Please open an issue or submit a pull request.
+   Contributions and/or suggestions are welcome! Please open an issue or submit a pull request.
 
 ## License
 
