@@ -24,17 +24,19 @@ install-build-tools() {
             echo "Installing $tool..."
             echo ""
             sudo $pkg_manager update -y
-            sudo $pkg_manager install -y python3-$tool
+            if [[ "$tool" == "pipx" ]]; then
+                # Ensure pipx is on the PATH
+                sudo $pkg_manager install -y pipx
+                pipx ensurepath
+            else
+                sudo $pkg_manager install -y python3-$tool
+            fi
 
             if ! python -c "import $tool" 2>/dev/null; then
                 echo -e "${RED}✗ Failed to install '$tool'${NC}"
                 exit 1
             fi
 
-            if [[ "$tool" == "pipx" ]]; then
-                # Ensure pipx is on the PATH
-                pipx ensurepath
-            fi
 
             echo -e "${GREEN}✓ '$tool' installed successfully${NC}"
         else
@@ -72,10 +74,10 @@ echo ""
 echo -e "${YELLOW}Step 2: Checking Python version and dependencies...${NC}"
 PYTHON_VERSION=$(python3 -c "import sys; print(sys.version_info >= (3, 10))")
 if [[ $PYTHON_VERSION -eq 1 ]]; then
-    echo -e "${RED}✗ Python 3.10 or higher is required (found $PYTHON_VERSION)${NC}"
+    echo -e "${RED}✗ Python 3.10 or higher is required ${NC}"
     exit 1
 else
-    echo -e "${GREEN}✓ Python version $PYTHON_VERSION is sufficient${NC}"
+    echo -e "${GREEN}✓ Python version is sufficient${NC}"
 fi
 
 if [[ "$PKG_MANAGER" == "none" ]]; then
@@ -94,6 +96,13 @@ if [[ "$(uname)" == "Linux" ]]; then
 
         sudo $PKG_MANAGER update -y
         sudo $PKG_MANAGER install -y libpcap-dev
+
+        echo ""
+        if ! dpkg -s libpcap-dev &> /dev/null; then
+            echo -e "${RED}✗ Failed to install 'libpcap-dev'${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✓ 'libpcap-dev' installed successfully${NC}"
     else
         echo -e "${GREEN}✓ 'libpcap-dev' is installed${NC}"
     fi
