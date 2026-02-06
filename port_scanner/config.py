@@ -7,8 +7,11 @@ Defines all global configuration parameters, including:
 - Service port definitions and protocol flags
 - Error codes and port ranges
 """
+import errno
+
 from scapy.all import conf as scapy_conf
 from enum import IntEnum
+
 
 scapy_conf.use_pcap = True
 
@@ -42,6 +45,16 @@ BASE_SOURCE_PORT = 40000
 SYN_ACK_FLAG = 0x12
 RESET_FLAG = 0x04
 ICMP_UNREACHABLE_TYPE = 3
+
+NO_ROUTE_TO_HOST_ERRNO = errno.EHOSTUNREACH
+NETWORK_UNREACHABLE_ERRNO = errno.ENETUNREACH
+ETIMEDOUT_ERRNO = errno.ETIMEDOUT
+
+ERRORNO_LIST = [
+    NO_ROUTE_TO_HOST_ERRNO,
+    NETWORK_UNREACHABLE_ERRNO,
+    ETIMEDOUT_ERRNO,
+]
 
 DEFAULT_TIMEOUT = 1.5
 DEFAULT_READ_BYTES = 1024
@@ -80,13 +93,3 @@ SYN_SCAN_BATCH_SIZE = 2000
 OPEN_PORT = "OPEN"
 CLOSED_PORT = "CLOSED"
 FILTERED_PORT = "FILTERED"
-
-NO_ROUTE_TO_HOST_ERRNO = 113
-NETWORK_UNREACHABLE_ERRNO = 101
-ETIMEDOUT_ERRNO = 110
-
-ERRORNO_LIST = [
-    NO_ROUTE_TO_HOST_ERRNO,
-    NETWORK_UNREACHABLE_ERRNO,
-    ETIMEDOUT_ERRNO,
-]
