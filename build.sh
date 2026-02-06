@@ -76,14 +76,21 @@ SPINNER_PID=0
 SPINNER_RUNNING=0
 CURRENT_MESSAGE=""
 PROGRESS_LINE=0
+PROGRESS_TTY="/dev/tty"
 init_progress() {
-    if command -v tput >/dev/null 2>&1; then
+    if command -v tput >/dev/null 2>&1 && [[ -w "$PROGRESS_TTY" ]]; then
         PROGRESS_ENABLED=1
-        tput civis
-        PROGRESS_LINE=$(( $(tput lines) - 1 ))
-        tput csr 0 $((PROGRESS_LINE - 1))
-        tput cup "$PROGRESS_LINE" 0
-        tput el
+        local lines
+        lines=$(tput lines)
+        if [[ "$lines" -lt 3 ]]; then
+            PROGRESS_ENABLED=0
+            return
+        fi
+        tput civis > "$PROGRESS_TTY"
+        PROGRESS_LINE=$((lines - 1))
+        tput csr 0 $((PROGRESS_LINE - 1)) > "$PROGRESS_TTY"
+        tput cup 0 0 > "$PROGRESS_TTY"
+        tput el > "$PROGRESS_TTY"
         trap 'finish_progress' EXIT
     fi
 }
@@ -104,11 +111,11 @@ update_progress() {
     fi
 
     if [[ "$PROGRESS_ENABLED" -eq 1 ]]; then
-        tput sc
-        tput cup "$PROGRESS_LINE" 0
-        printf "[%s%s] %d/%d%s" "$filled_bar" "$empty_bar" "$step" "$TOTAL_STEPS" "$extra"
-        tput el
-        tput rc
+        tput sc > "$PROGRESS_TTY"
+        tput cup "$PROGRESS_LINE" 0 > "$PROGRESS_TTY"
+        printf "[%s%s] %d/%d%s" "$filled_bar" "$empty_bar" "$step" "$TOTAL_STEPS" "$extra" > "$PROGRESS_TTY"
+        tput el > "$PROGRESS_TTY"
+        tput rc > "$PROGRESS_TTY"
     else
         printf "\r[%s%s] %d/%d%s" "$filled_bar" "$empty_bar" "$step" "$TOTAL_STEPS" "$extra"
     fi
@@ -117,10 +124,12 @@ update_progress() {
 set_progress_step() {
     CURRENT_STEP=$1
     update_progress "$CURRENT_STEP"
+    restart_spinner
 }
 
 set_progress_message() {
     CURRENT_MESSAGE=$1
+    restart_spinner
 }
 
 start_spinner() {
@@ -149,13 +158,22 @@ stop_spinner() {
     fi
 }
 
+restart_spinner() {
+    if [[ "$SPINNER_RUNNING" -eq 1 ]]; then
+        stop_spinner
+        start_spinner
+    fi
+}
+
 finish_progress() {
     stop_spinner
     if [[ "$PROGRESS_ENABLED" -eq 1 ]]; then
-        tput csr 0 $(( $(tput lines) - 1 ))
-        tput cup "$PROGRESS_LINE" 0
-        tput el
-        tput cnorm
+        local lines
+        lines=$(tput lines)
+        tput csr 0 $((lines - 1)) > "$PROGRESS_TTY"
+        tput cup "$PROGRESS_LINE" 0 > "$PROGRESS_TTY"
+        tput el > "$PROGRESS_TTY"
+        tput cnorm > "$PROGRESS_TTY"
     fi
 }
 
@@ -163,9 +181,9 @@ finish_progress() {
 
 # Step 1: Clean previous builds
 init_progress
+start_spinner
 set_progress_step 1
 set_progress_message "Cleaning... "
-start_spinner
 echo -e "${YELLOW}Step 1: Cleaning previous builds...${NC}"
 rm -rf dist/ *.egg-info port_scanner.egg-info 2>/dev/null || true
 echo -e "${GREEN}✓ Cleaned${NC}"
