@@ -29,13 +29,21 @@ if ! python -c "import build" 2>/dev/null; then
     echo "Installing build tools..."
     echo ""
     
-    # Check if we can install (venv or user install)
-    if [ -n "$VIRTUAL_ENV" ]; then
-        pip install --upgrade build
+    # Detect and use appropriate package manager
+    if command -v apt-get &> /dev/null; then
+        echo "Using apt-get..."
+        sudo apt-get update && sudo apt-get install -y python3-build
+    elif command -v dnf &> /dev/null; then
+        echo "Using dnf..."
+        sudo dnf install -y python3-build
+    elif command -v zypper &> /dev/null; then
+        echo "Using zypper..."
+        sudo zypper install -y python3-build
     else
-        echo "Installing with --user flag (no virtual environment detected)"
-        pip install --user --upgrade build
+        echo "No supported package manager found. Trying pip..."
+        pip install --user build
     fi
+
     echo ""
 else
     echo -e "${GREEN}✓ Build tools installed${NC}"
