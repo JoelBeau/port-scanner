@@ -118,7 +118,7 @@ echo ""
 # Step 5: Install the package
 echo -e "${YELLOW}Step 6: Installing SocketScout...${NC}"
 WHEEL_FILE=$(ls dist/*.whl | head -n 1)
-pipx install --no-cache-dir "$WHEEL_FILE"
+pipx install "$WHEEL_FILE"
 echo ""
 
 # Step 6: Create alias for easy access
@@ -136,6 +136,17 @@ else
 fi
 
 source ~/.bashrc
+
+# Step 7: Check command availability
+echo -e "${YELLOW}Step 8: Verifying installation...${NC}"
+if command -v socketscout &> /dev/null; then
+    echo -e "${GREEN}✓ 'socketscout' command is available${NC}"
+else
+    echo -e "${RED}✗ 'socketscout' command not found${NC}"
+    echo "Please check the alias setup and ensure ~/.local/bin is in your PATH."
+    exit 1
+fi
+echo ""
 
 echo -e "${GREEN}=========================================="
 echo "✓ Installation complete!${NC}"
