@@ -6,7 +6,7 @@ and respects global concurrency limits.
 """
 import asyncio
 
-from port_scanner.scanners import SCANNER_CLASSES
+from port_scanner.scanners import SCANNER_CLASS
 from port_scanner.models.port import Port
 from port_scanner.utils import network
 from port_scanner import config as conf
@@ -58,7 +58,7 @@ async def scan(**flags):
 
         async with sem:
             scan_type = flags["scan_type"]
-            pscanner = SCANNER_CLASSES[scan_type](str(host), hostname, **flags)
+            pscanner = SCANNER_CLASS[scan_type](str(host), hostname, **flags)
             port_list: list[Port] = []
 
             logger_message = f"Scanning host {host} with {scan_type} scan..."

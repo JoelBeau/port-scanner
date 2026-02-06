@@ -3,7 +3,7 @@ from .tcp import TCPConnect
 from .syn import SYNScan
 
 # Scanner registry
-SCANNER_CLASSES = {
+SCANNER_CLASS = {
     "tcp": TCPConnect,
     "syn": SYNScan,
 }
