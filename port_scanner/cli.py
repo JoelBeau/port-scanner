@@ -8,6 +8,7 @@ Provides the main entry point that orchestrates the scanning workflow:
 - Logs performance metrics
 """
 import asyncio
+import sys
 import time
 
 import port_scanner.log as log
@@ -16,6 +17,7 @@ import port_scanner.core.output as output
 import port_scanner.utils.validation as validation
 import port_scanner.core.scanner as scanner
 
+from port_scanner.errors import PortScannerError
 from port_scanner.models.arguments import Arguments
 
 
@@ -29,29 +31,38 @@ def main():
     4. Runs concurrent host/port scanning via asyncio
     5. Formats and displays results
 
-    Raises:
-        PortScannerError: If root privileges are missing or argument parsing fails.
-        Exception: Any unexpected errors during scanning are caught and logged.
+    Returns:
+        int: EXIT_SUCCESS (0) on successful completion, EXIT_FAILURE (1) on error.
     """
-    validation.check_root_privileges()
+    try:
+        validation.check_root_privileges()
 
-    logger = log.setup_logger("port_scanner")
+        logger = log.setup_logger("port_scanner")
 
-    flags = Arguments().args
-    logger.info(f"Parsed command-line arguments successfully with: {flags}")
+        flags = Arguments().args
+        logger.info(f"Parsed command-line arguments successfully with: {flags}")
 
-    logger_message = "Starting port scanner..."
-    logger.info(logger_message)
-    print(logger_message)
+        logger_message = "Starting port scanner..."
+        logger.info(logger_message)
+        print(logger_message)
 
-    start = time.time()
+        start = time.time()
 
-    results = asyncio.run(scanner.scan(**flags))
+        results = asyncio.run(scanner.scan(**flags))
 
-    output.display_results(results, flags['output'])
+        output.display_results(results, flags['output'])
 
-    end = time.time()
+        end = time.time()
 
-    scanning_time_message = f"Port scanning completed in {end - start:.2f} seconds."
-    logger.info(scanning_time_message)
-    print(scanning_time_message)
+        scanning_time_message = f"Port scanning completed in {end - start:.2f} seconds."
+        logger.info(scanning_time_message)
+        print(scanning_time_message)
+        
+        return conf.EXIT_SUCCESS
+    
+    except PortScannerError as e:
+        print(e, file=sys.stderr)
+        return conf.EXIT_FAILURE
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}", file=sys.stderr)
+        return conf.EXIT_FAILURE
