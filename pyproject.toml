@@ -9,7 +9,7 @@ description = "A fast, async port scanner with banner grabbing"
 authors = [{name = "Joel Beauregard", email = "JoelBeau@users.noreply.github.com"}]
 readme = "README.md"
 requires-python = ">=3.8"
-license = "MIT"
+license = "GPL-3.0"
 license-files = ["LICENSE"]
 keywords = ["socketscout", "port-scanner", "network", "security"]
 classifiers = [
