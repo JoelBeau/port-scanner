@@ -1,4 +1,4 @@
-# Port Scanner
+# Socket Scout
 
 A high-performance, concurrent port scanner written in Python that focuses on correct asynchronous design, per-host isolation, and extensibility. This project demonstrates systems-oriented software engineering with an asyncio-based pipeline for efficient multi-host and large-range scanning.
 
@@ -276,7 +276,7 @@ This design allows the scanner to scale efficiently while maintaining correctnes
 
    ```python
       # Configure concurrency limits in conf.py
-      DEFAULT_CONCURRENCY_FOR_SCANS = 600
+      DEFAULT_CONCURRENCY_FOR_SCANS = 800
    ```
 
 
