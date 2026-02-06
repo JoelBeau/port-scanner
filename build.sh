@@ -70,9 +70,9 @@ echo ""
 
 # Step 2: Check required Python version & dependency of lipcap-dev (for Linux)
 echo -e "${YELLOW}Step 2: Checking Python version and dependencies...${NC}"
-PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-if (( $(echo "$PYTHON_VERSION < 3.8") )); then
-    echo -e "${RED}✗ Python 3.8 or higher is required (found $PYTHON_VERSION)${NC}"
+PYTHON_VERSION=$(python3 -c "import sys; print(sys.version_info >= (3, 10))")
+if [[ $PYTHON_VERSION -eq 0 ]]; then
+    echo -e "${RED}✗ Python 3.10 or higher is required (found $PYTHON_VERSION)${NC}"
     exit 1
 else
     echo -e "${GREEN}✓ Python version $PYTHON_VERSION is sufficient${NC}"
