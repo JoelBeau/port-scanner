@@ -31,6 +31,11 @@ install-build-tools() {
                 exit 1
             fi
 
+            if [[ "$tool" == "pipx" ]]; then
+                # Ensure pipx is on the PATH
+                pipx ensurepath
+            fi
+
             echo -e "${GREEN}✓ '$tool' installed successfully${NC}"
         else
             echo -e "${GREEN}✓ '$tool' is installed${NC}"
@@ -110,18 +115,18 @@ sudo rm -rf build-env
 echo -e "${GREEN}✓ Package built successfully${NC}"
 echo ""
 
-# Step 4: List created files
+# Step 5: List created files
 echo -e "${YELLOW}Step 5: Generated files:${NC}"
 ls -lh dist/
 echo ""
 
-# Step 5: Install the package
+# Step 6: Install the package
 echo -e "${YELLOW}Step 6: Installing SocketScout...${NC}"
 WHEEL_FILE=$(ls dist/*.whl | head -n 1)
 pipx install "$WHEEL_FILE"
 echo ""
 
-# Step 6: Create alias for easy access
+# Step 7: Create alias for easy access
 echo -e "${YELLOW}Step 7: Setting up alias...${NC}"
 if [[ -f ~/.bash_aliases ]]; then
     if ! grep -q "alias socketscout=" ~/.bash_aliases; then
@@ -137,7 +142,7 @@ fi
 
 source ~/.bashrc
 
-# Step 7: Check command availability
+# Step 8: Check command availability
 echo -e "${YELLOW}Step 8: Verifying installation...${NC}"
 if command -v socketscout &> /dev/null; then
     echo -e "${GREEN}✓ 'socketscout' command is available${NC}"
