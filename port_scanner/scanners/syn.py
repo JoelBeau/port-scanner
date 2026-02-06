@@ -12,8 +12,9 @@ import port_scanner.config as conf
 from port_scanner.models.port import Port
 from .base import Scan
 
-from scapy.all import AsyncSniffer, send
-from scapy.layers.inet import ICMP, IP, TCP
+from scapy.all import AsyncSniffer, send, sendp, conf as scapy_conf, getmacbyip
+from scapy.layers.inet import ICMP, IP, TCP, IPerror, TCPerror
+from scapy.layers.l2 import Ether
 
 logger = logging.getLogger("port_scanner")
 
@@ -86,11 +87,28 @@ class SYNScan(Scan):
         sport_map = {base_sport + i: p for i, p in enumerate(chunk_of_ports)}
 
         logger.info(f"Preparing packets for SYN scan on host {self._host}...")
-        pkts = [
-            IP(dst=self._host)
-            / TCP(sport=our_sport, dport=scanned_port, flags="S", seq=1000)
-            for our_sport, scanned_port in sport_map.items()
-        ]
+
+        # Resolve gateway MAC to avoid "MAC address to reach destination not found" on macOS
+        gw_ip = scapy_conf.route.route(self._host)[2]
+        dst_mac = getmacbyip(gw_ip) if gw_ip != "0.0.0.0" else getmacbyip(self._host)
+
+        if dst_mac:
+            use_l2 = True
+            pkts = [
+                Ether(dst=dst_mac)
+                / IP(dst=self._host)
+                / TCP(sport=our_sport, dport=scanned_port, flags="S", seq=1000)
+                for our_sport, scanned_port in sport_map.items()
+            ]
+        else:
+            # Fallback to Layer 3 if MAC resolution fails
+            use_l2 = False
+            logger.warning(f"Could not resolve gateway MAC for {self._host}, falling back to Layer 3")
+            pkts = [
+                IP(dst=self._host)
+                / TCP(sport=our_sport, dport=scanned_port, flags="S", seq=1000)
+                for our_sport, scanned_port in sport_map.items()
+            ]
 
         logger.info(f"Starting sniffer for SYN scan on host {self._host}...")
         sn = AsyncSniffer(
@@ -112,7 +130,10 @@ class SYNScan(Scan):
         logger.info(logger_message)
         if self._verbosity >= conf.VerbosityLevel.MEDIUM:
             print(logger_message)
-        send(pkts)
+        if use_l2:
+            sendp(pkts, iface=conf.IFACE, verbose=False)
+        else:
+            send(pkts, verbose=False)
 
         logger_message = f"SYN packets sent to {self._host}, waiting for replies..."
         logger.info(logger_message)
@@ -156,8 +177,11 @@ class SYNScan(Scan):
                     status[scanned_port] = conf.CLOSED_PORT
                 seen.add(scanned_port)
             elif pkt.haslayer(ICMP) and pkt[ICMP].type == conf.ICMP_UNREACHABLE_TYPE:
-                icmp = pkt[ICMP]
-                our_sport = icmp.sport
+                # ICMP unreachable embeds original IP/TCP headers in payload
+                if not pkt.haslayer(TCPerror):
+                    continue
+                tcp_err = pkt[TCPerror]
+                our_sport = tcp_err.sport
                 scanned_port = sport_map.get(our_sport)
                 if scanned_port is None:
                     continue
