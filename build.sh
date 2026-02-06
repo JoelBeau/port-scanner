@@ -1,54 +1,5 @@
 #!/bin/bash
 
-determine-package-manager() {
-    if command -v apt-get &> /dev/null; then
-        echo "apt-get"
-    elif command -v dnf &> /dev/null; then
-        echo "dnf"
-    elif command -v brew &> /dev/null; then
-        echo "brew"
-    else
-        echo "none"
-    fi
-}
-
-install-build-tools() {
-
-    build_tools=( 'build' 'venv' 'pipx' )
-
-    pkg_manager=$1
-
-    for tool in "${build_tools[@]}"; do
-        if ! python -c "import $tool" 2>/dev/null; then
-            echo -e "${RED}✗ '$tool' package not found${NC}"
-            echo "Installing $tool..."
-            echo ""
-            sudo $pkg_manager update -y
-            if [[ "$tool" == "pipx" ]]; then
-                # Ensure pipx is on the PATH
-                sudo $pkg_manager install -y pipx
-                pipx ensurepath
-                
-                # Reload the shell to update PATH for pipx without requiring a new terminal session
-                source ~/.bashrc
-            else
-                sudo $pkg_manager install -y python3-$tool
-            fi
-
-            if ! python -c "import $tool" 2>/dev/null; then
-                echo -e "${RED}✗ Failed to install '$tool'${NC}"
-                exit 1
-            fi
-
-
-            echo -e "${GREEN}✓ '$tool' installed successfully${NC}"
-        else
-            echo -e "${GREEN}✓ '$tool' is installed${NC}"
-        fi
-    done
-}
-
-
 # SocketScout Build and Install Script for Users
 
 set -e  # Exit on any error
@@ -118,11 +69,7 @@ echo ""
 
 # Step 4: Build the package
 echo -e "${YELLOW}Step 4: Building package...${NC}"
-python -m venv --system-site-packages build-env
-source build-env/bin/activate
-python -m build
-deactivate
-sudo rm -rf build-env
+build-package
 echo -e "${GREEN}✓ Package built successfully${NC}"
 echo ""
 
@@ -137,18 +84,15 @@ WHEEL_FILE=$(ls dist/*.whl | head -n 1)
 pipx install "$WHEEL_FILE"
 echo ""
 
-
-
+# Step 7: Create symbolic link
+echo -e "${YELLOW}Step 7: Setting up symbolic link...${NC}"
+sudo ln -s "$(which socketscout)" /usr/local/bin/socketscout
+echo -e "${GREEN}✓ Symbolic link created at /usr/local/bin/socketscout${NC}"
+echo ""
 
 # Step 8: Check command availability
 echo -e "${YELLOW}Step 8: Verifying installation...${NC}"
-if command -v socketscout &> /dev/null; then
-    echo -e "${GREEN}✓ 'socketscout' command is available${NC}"
-else
-    echo -e "${RED}✗ 'socketscout' command not found${NC}"
-    echo "Please check the alias setup and ensure ~/.local/bin is in your PATH."
-    exit 1
-fi
+check-socketscout
 echo ""
 
 echo -e "${GREEN}=========================================="
@@ -159,3 +103,70 @@ echo "  sudo socketscout --help"
 echo "  sudo socketscout -t localhost"
 echo ""
 echo "For documentation, see README.md"
+
+
+determine-package-manager() {
+    if command -v apt-get &> /dev/null; then
+        echo "apt-get"
+    elif command -v dnf &> /dev/null; then
+        echo "dnf"
+    elif command -v brew &> /dev/null; then
+        echo "brew"
+    else
+        echo "none"
+    fi
+}
+
+install-build-tools() {
+
+    build_tools=( 'build' 'venv' 'pipx' )
+
+    pkg_manager=$1
+
+    for tool in "${build_tools[@]}"; do
+        if ! python -c "import $tool" 2>/dev/null; then
+            echo -e "${RED}✗ '$tool' package not found${NC}"
+            echo "Installing $tool..."
+            echo ""
+            sudo $pkg_manager update -y
+            if [[ "$tool" == "pipx" ]]; then
+                # Ensure pipx is on the PATH
+                sudo $pkg_manager install -y pipx
+                pipx ensurepath
+                
+                # Reload the shell to update PATH for pipx without requiring a new terminal session
+                source ~/.bashrc
+            else
+                sudo $pkg_manager install -y python3-$tool
+            fi
+
+            if ! python -c "import $tool" 2>/dev/null; then
+                echo -e "${RED}✗ Failed to install '$tool'${NC}"
+                exit 1
+            fi
+
+
+            echo -e "${GREEN}✓ '$tool' installed successfully${NC}"
+        else
+            echo -e "${GREEN}✓ '$tool' is installed${NC}"
+        fi
+    done
+}
+
+build-package() {
+    python -m venv --system-site-packages build-env
+    source build-env/bin/activate
+    python -m build
+    deactivate
+    sudo rm -rf build-env
+}
+
+check-socketscout() {
+    if command -v socketscout &> /dev/null; then
+        echo -e "${GREEN}✓ 'socketscout' command is available${NC}"
+    else
+        echo -e "${RED}✗ 'socketscout' command not found${NC}"
+        echo "Please check the alias setup and ensure ~/.local/bin is in your PATH."
+        exit 1
+    fi
+}
