@@ -4,7 +4,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ## Notice
    - This project is designed to run on Linux, macOS, and Windows systems with Python 3.8 or later installed.
-   - Please note you must be a root/sudo user on Linux/WSL/MacOS in order to run, so please make sure you have premissions.
+   - **Root/sudo privileges required:** SYN scanning and raw socket operations require elevated privileges on Linux/WSL/macOS
    - This project is a work in progress, and I am open to suggestions for improvement. Please let me know if you have any ideas or feedback.
    - **Ethical Use**: This tool is intended for educational purposes and for use on systems you own or have explicit permission to test. Unauthorized scanning of networks or systems may be illegal or unethical.
 
@@ -14,34 +14,94 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    - macOS
 
 ## Dependencies
+
+### System Requirements
    - Python 3.8 or later
-   - See `pyproject.toml` for Python package dependencies
+   - libpcap library (required for packet manipulation)
+   
+   **Install libpcap:**
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install libpcap-dev
+   
+   # Fedora/RHEL
+   sudo dnf install libpcap-devel
+   
+   # macOS (usually pre-installed, or via Homebrew)
+   brew install libpcap
+   ```
+
+### Python Packages
+   - See `pyproject.toml` for Python package dependencies (automatically installed with pip)
 
 ## Installation
 
-### From PyPI
+**Note:** Due to PEP 668 (externally managed environments), it's recommended to use `pipx` for CLI tools or install in a virtual environment.
+
+### Recommended: Using pipx
    ```bash
-      pip install socketscout
+   # Install pipx if you don't have it
+   sudo apt install pipx
+   pipx ensurepath
+   
+   # Install socketscout
+   pipx install socketscout
+   
+   # Run with sudo (required for SYN scanning)
+   sudo ~/.local/bin/socketscout -t localhost
+   ```
+
+### Alternative: From PyPI with pip
+   ```bash
+   # Create a virtual environment
+   python3 -m venv ~/socketscout-env
+   source ~/socketscout-env/bin/activate
+   pip install socketscout
+   
+   # Run with sudo
+   sudo ~/socketscout-env/bin/socketscout -t localhost
    ```
 
 ### From GitHub Release
    ```bash
-      pip install https://github.com/JoelBeau/socketscout/releases/latest/download/socketscout-1.0.0-py3-none-any.whl
+   # In a virtual environment
+   python3 -m venv ~/socketscout-env
+   source ~/socketscout-env/bin/activate
+   pip install https://github.com/JoelBeau/socketscout/releases/latest/download/socketscout-1.0.1-py3-none-any.whl
    ```
 
 ### From Source
-   1. By cloning:
+   ```bash
+   # Clone and install in development mode
+   git clone https://github.com/JoelBeau/socketscout.git
+   cd socketscout
+   python3 -m venv venv
+   source venv/bin/activate
+   pip install -e .
+   ```
 
-      ```bash
-         git clone https://github.com/JoelBeau/socketscout.git
-         cd socketscout
-         pip install -e .
-      ```
-   2. By downloading the .tar.gz source archive from the GitHub releases page and installing with pip:
+## Optional: Shell Alias Setup
 
-      ```bash
-         pip install https://github.com/JoelBeau/socketscout/releases/latest/download/socketscout-1.0.0.tar.gz
-      ```
+To avoid typing the full path with sudo each time, add an alias to your shell configuration:
+
+**For pipx installation:**
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+echo "alias socketscout='sudo ~/.local/bin/socketscout'" >> ~/.bash_aliases
+source ~/.bashrc
+```
+
+**For venv installation:**
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+echo "alias socketscout='sudo ~/socketscout-env/bin/socketscout'" >> ~/.bash_aliases
+source ~/.bashrc
+```
+
+After setting up the alias, you can simply run:
+```bash
+socketscout -t localhost -p 80,443
+```
 
 
 ## Features
@@ -57,22 +117,24 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ## How to Use
 
+**Note:** Use `sudo` for SYN scanning or when accessing raw sockets. TCP connect scans may work without sudo on some systems.
+
    1. Basic scan of a single host (default port range is 1-1025):
 
       ```bash
-         socketscout -t localhost
+         sudo socketscout -t localhost
       ```
 
    2. Scan specific ports:
 
       ```bash
-         socketscout -t localhost -p 22,80,443
+         sudo socketscout -t localhost -p 22,80,443
       ```
 
    3. Scan a port range:
 
       ```bash
-         socketscout -t localhost -p 1-1024
+         sudo socketscout -t localhost -p 1-1024
       ```
       
    4. Scan with banner grabbing & increased verbosity:
@@ -86,17 +148,17 @@ A high-performance, concurrent port scanner written in Python that focuses on co
          sudo socketscout -t localhost -o test.txt
       ```
 
-   7. View all available options:
+   6. View all available options:
 
       ```bash
-         socketscout --help
+         sudo socketscout --help
       ```
 ## Output Examples
 
    - Default output format (text, to console):
 
       ```bash
-         socketscout -t localhost -p 22,80,443 -b
+         sudo socketscout -t localhost -p 22,80,443 -b
       ```
 
       ![Example of text output format to console](https://bit.ly/text-output)
@@ -104,7 +166,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    - JSON output format to console:
 
       ```bash
-         socketscout -t localhost -p 22,80,443 -b -o json
+         sudo socketscout -t localhost -p 22,80,443 -b -o json
       ```
 
       ![Example of JSON output format to console](https://bit.ly/json-output)
@@ -112,7 +174,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    - CSV output format to console:
 
       ```bash
-         socketscout -t localhost -p 22,80,443 -b -o csv
+         sudo socketscout -t localhost -p 22,80,443 -b -o csv
       ```
       
       ![Example of CSV output format to console](https://bit.ly/csv-output)
@@ -121,7 +183,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    For each output type, they can be written to a file instead of the console by providing a filename instead of "json" or "text" to the `-o` flag. For example:
 
    ```bash
-      socketscout -t localhost -p 22,80,443 -b -o results.txt
+      sudo socketscout -t localhost -p 22,80,443 -b -o results.txt
    ```
 
    Note that the file will be renamed by adding on the hostname (if applicable) to the end of the filename, so the above command will actually write to `results-localhost.txt`. This is to prevent overwriting results when scanning multiple hosts.

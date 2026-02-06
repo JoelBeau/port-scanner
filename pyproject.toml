@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "socketscout"
-version = "1.0.0"
+version = "1.0.1"
 description = "A fast, async port scanner with banner grabbing"
 authors = [{name = "Joel Beauregard", email = "JoelBeau@users.noreply.github.com"}]
 readme = "README.md"
