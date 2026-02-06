@@ -1,4 +1,4 @@
-# SocketScout
+# Port Scanner
 
 A high-performance, concurrent port scanner written in Python that focuses on correct asynchronous design, per-host isolation, and extensibility. This project demonstrates systems-oriented software engineering with an asyncio-based pipeline for efficient multi-host and large-range scanning.
 
