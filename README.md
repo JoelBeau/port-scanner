@@ -1,4 +1,4 @@
-# Port Scanner
+# SocketScout
 
 A high-performance, concurrent port scanner written in Python that focuses on correct asynchronous design, per-host isolation, and extensibility. This project demonstrates systems-oriented software engineering with an asyncio-based pipeline for efficient multi-host and large-range scanning.
 
@@ -15,32 +15,32 @@ A high-performance, concurrent port scanner written in Python that focuses on co
 
 ## Dependencies
    - Python 3.8 or later
-   - See `port_scanner/pyproject.toml` for Python package dependencies
+   - See `pyproject.toml` for Python package dependencies
 
 ## Installation
 
-### From PyPI (Comming Soon)
+### From PyPI
    ```bash
-      pip install concurrent-port-scanner
+      pip install socketscout
    ```
 
 ### From GitHub Release
    ```bash
-      pip install https://github.com/JoelBeau/port-scanner/releases/latest/download/port_scanner-1.0.0-py3-none-any.whl
+      pip install https://github.com/JoelBeau/socketscout/releases/latest/download/socketscout-1.0.0-py3-none-any.whl
    ```
 
 ### From Source
    1. By cloning:
 
       ```bash
-         git clone https://github.com/JoelBeau/port-scanner.git
-         cd port-scanner
+         git clone https://github.com/JoelBeau/socketscout.git
+         cd socketscout
          pip install -e .
       ```
    2. By downloading the .tar.gz source archive from the GitHub releases page and installing with pip:
 
       ```bash
-         pip install https://github.com/JoelBeau/port-scanner/releases/latest/download/port_scanner-1.0.0.tar.gz
+         pip install https://github.com/JoelBeau/socketscout/releases/latest/download/socketscout-1.0.0.tar.gz
       ```
 
 
@@ -60,43 +60,43 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    1. Basic scan of a single host (default port range is 1-1025):
 
       ```bash
-         port-scanner -t localhost
+         socketscout -t localhost
       ```
 
    2. Scan specific ports:
 
       ```bash
-         port-scanner -t localhost -p 22,80,443
+         socketscout -t localhost -p 22,80,443
       ```
 
    3. Scan a port range:
 
       ```bash
-         port-scanner -t localhost -p 1-1024
+         socketscout -t localhost -p 1-1024
       ```
       
    4. Scan with banner grabbing & increased verbosity:
 
       ```bash
-         sudo port-scanner -t localhost -v 2 -b
+         sudo socketscout -t localhost -v 2 -b
       ```
       
    5. Output to text file (other formats are available):
       ```bash
-         sudo port-scanner -t localhost -o test.txt
+         sudo socketscout -t localhost -o test.txt
       ```
 
    7. View all available options:
 
       ```bash
-         port-scanner --help
+         socketscout --help
       ```
 ## Output Examples
 
    - Default output format (text, to console):
 
       ```bash
-         port-scanner -t localhost -p 22,80,443 -b
+         socketscout -t localhost -p 22,80,443 -b
       ```
 
       ![Example of text output format to console](https://bit.ly/text-output)
@@ -104,7 +104,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    - JSON output format to console:
 
       ```bash
-         port-scanner -t localhost -p 22,80,443 -b -o json
+         socketscout -t localhost -p 22,80,443 -b -o json
       ```
 
       ![Example of JSON output format to console](https://bit.ly/json-output)
@@ -112,7 +112,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    - CSV output format to console:
 
       ```bash
-         port-scanner -t localhost -p 22,80,443 -b -o csv
+         socketscout -t localhost -p 22,80,443 -b -o csv
       ```
       
       ![Example of CSV output format to console](https://bit.ly/csv-output)
@@ -121,7 +121,7 @@ A high-performance, concurrent port scanner written in Python that focuses on co
    For each output type, they can be written to a file instead of the console by providing a filename instead of "json" or "text" to the `-o` flag. For example:
 
    ```bash
-      port-scanner -t localhost -p 22,80,443 -b -o results.txt
+      socketscout -t localhost -p 22,80,443 -b -o results.txt
    ```
 
    Note that the file will be renamed by adding on the hostname (if applicable) to the end of the filename, so the above command will actually write to `results-localhost.txt`. This is to prevent overwriting results when scanning multiple hosts.
