@@ -83,6 +83,12 @@ A high-performance, concurrent port scanner written in Python that focuses on co
       ```bash
          port-scanner --help
       ```
+## Output Examples
+
+   - Default output format (text, to console):
+
+      
+
 
 ## Usage Examples
 
